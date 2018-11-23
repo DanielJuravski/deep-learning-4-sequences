@@ -5,6 +5,20 @@ import numpy as np
 word2vec = None
 
 
+def createWordVecDict(train_data):
+    wordVec = {}
+    eps = np.sqrt(6) / np.sqrt(50)
+    with open(train_data) as f:
+        for line in f:
+            if line != '\n':
+                word, tag = line.split()
+                vector_value = np.random.uniform(low=-eps, high=eps, size=50)
+                if not wordVec.has_key(word):
+                    wordVec[word] = vector_value
+
+    return wordVec
+
+
 def load_wordVectorsVocab(vocab_data, wordVectors_data):
     vocab_vector = {}
 
@@ -45,18 +59,15 @@ def load_train_data (train_data):
 
     return sen_arr
 
+
 def getWordVector(pair):
     """
-
+    convert word to its vector from the dict
     :param pair: WORD TAG
     :return:
     """
     word, tag = pair.split()
-    word = word.lower()
     vec = word2vec[word]
-    vec = vec.split()
-    vec = [float(x) for x in vec]
-    vec = np.array(vec)
 
     return vec
 
@@ -102,15 +113,13 @@ def train_model(sen_arr):
 
 
 if __name__ == '__main__':
-    #option = sys.argv[1]
-    #if option == '-train':
-
     train_data = sys.argv[1]
     vocab_data = sys.argv[2]
     wordVectors_data = sys.argv[3]
-
-    word2vec = load_wordVectorsVocab(vocab_data, wordVectors_data)
+    word2vec = createWordVecDict(train_data)
     sen_arr = load_train_data(train_data)
 
 
     train_model(sen_arr)
+
+    pass
