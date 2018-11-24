@@ -48,24 +48,7 @@ def createWordVecDict(train_data):
     return wordVec
 
 
-def load_wordVectorsVocab(vocab_data, wordVectors_data):
-    vocab_vector = {}
 
-    with open(vocab_data) as vocab_f, open(wordVectors_data) as wordVector_f:
-        vocab_f_num_lines = sum(1 for line in vocab_f)
-        wordVector_f_num_lines = sum(1 for line in wordVector_f)
-        if vocab_f_num_lines != wordVector_f_num_lines:
-            print "Number of lines in %s and %s is not identical !!!" % (vocab_data, wordVectors_data)
-            raise AssertionError()
-        # define file pointer to the head of the file
-        vocab_f.seek(0)
-        wordVector_f.seek(0)
-
-        for word, tag in zip(vocab_f, wordVector_f):
-            vocab_vector[word.strip()] = tag
-
-    print "Word to vector dictionary was loaded."
-    return vocab_vector
 
 
 def load_train_data (train_data):
