@@ -1,8 +1,36 @@
+import dynet as dy
 import sys
 import numpy as np
-#import dynet
+import random
 
 word2vec = None
+tag_set = None
+
+N1 = 500
+EPOCHS = 10
+BATCH_SIZE = 1000
+
+
+def getDataVocab(train_data):
+    vocab = {}
+    size = 0
+    with open(train_data) as f:
+        for line in f:
+            if line != '\n':
+                word, tag = line.split()
+                if not vocab.has_key(word):
+                    vocab[word] = size
+                    size += 1
+    vocab['/S/S'] = size
+    size += 1
+    vocab['/S'] = size
+    size += 1
+    vocab['/E/E'] = size
+    size += 1
+    vocab['/E'] = size
+    size += 1
+
+    return vocab
 
 
 def createWordVecDict(train_data):
@@ -41,15 +69,21 @@ def load_wordVectorsVocab(vocab_data, wordVectors_data):
 
 def load_train_data (train_data):
     """
-    Convertinr train file to array of sentences
+    Converting train file to array of sentences, and getting the possible labels of the tagset.
     :param train_data:
-    :return: sen_arr
+    :return: sen_arr, tag_set
     """
     train_f = open(train_data)
     sen_arr = []
     sen = []
+    tag_set = {}
+    num = 0
     for line in train_f:
         if line != '\n':
+            word, tag = line.split()
+            if tag not in tag_set:
+                tag_set[tag] = num
+                num += 1
             sen.append(line)
         else:
             sen_arr.append(sen)
@@ -57,69 +91,109 @@ def load_train_data (train_data):
     sen_arr.append(sen)
     train_f.close()
 
-    return sen_arr
+    return sen_arr, tag_set
 
 
-def getWordVector(pair):
+def getWordIndex(sen, k):
     """
-    convert word to its vector from the dict
-    :param pair: WORD TAG
+    get word's index from the vocab
+    :param sen, k
     :return:
     """
-    word, tag = pair.split()
-    vec = word2vec[word]
+    i = vocab[sen[k].split()[0]]
 
-    return vec
+    return i
 
 
-def getVectorByWord(i, sen):
+def getVectorWordIndexes(i, sen, vocab):
     sen_len = len(sen)
 
     if i < 2:
-        vec_pp = np.zeros(50)
+        wpp = vocab['/S/S']
     else:
-        vec_pp = getWordVector(sen[i-2])
+        wpp = getWordIndex(sen, i-2)
 
     if i < 1:
-        vec_p = np.zeros(50)
+        wp = vocab['/S']
     else:
-        vec_p = getWordVector(sen[i-1])
+        wp = getWordIndex(sen, i-1)
 
-    vec_i = getWordVector(sen[i])
+    wi = getWordIndex(sen, i)
 
     if i > sen_len - 2:
-        vec_n = np.zeros(50)
+        wn = vocab['/E']
     else:
-        vec_n = getWordVector(sen[i+1])
+        wn = getWordIndex(sen, i+1)
 
     if i > sen_len - 3:
-        vec_nn = np.zeros(50)
+        wnn = vocab['/E/E']
     else:
-        vec_nn = getWordVector(sen[i+2])
+        wnn = getWordIndex(sen, i+2)
 
-    total_vec = np.concatenate((vec_pp, vec_p, vec_i, vec_n, vec_nn))
+    total_i = [wpp, wp, wi, wn, wnn]
 
-    return total_vec
-
-
-def train_model(sen_arr):
-    for sen in sen_arr:
-        for i in range(len(sen)):
-            word, tag = sen[i].split()
-            wordVector = getVectorByWord(i, sen)
+    return total_i
 
 
-    pass
+def train_model(sen_arr, vocab, tag_set):
+    # renew the computation graph
+    dy.renew_cg()
+
+    # define the parameters
+    m = dy.ParameterCollection()
+    w1 = m.add_parameters((N1, 250))
+    w2 = m.add_parameters((len(tag_set), N1))
+    b1 = m.add_parameters((N1))
+    b2 = m.add_parameters((len(tag_set)))
+    E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(50)))
+
+    # create trainer
+    trainer = dy.SimpleSGDTrainer(m)
+
+    total_loss = 0
+    seen_instances = 0
+
+    for epoch in range(EPOCHS):
+        random.shuffle(sen_arr)
+        for sen_i in range(BATCH_SIZE):
+            sen = sen_arr[sen_i]
+            for i in range(len(sen)):
+                dy.renew_cg()
+                word, tag = sen[i].split()
+                wordIndexVector = getVectorWordIndexes(i, sen, vocab)
+                emb_vectors = [E[j] for j in wordIndexVector]
+                net_input = dy.concatenate(emb_vectors)
+                l1 = dy.tanh((w1*net_input)+b1)
+                net_output = (w2*l1)+b2
+
+                y = int(tag_set[tag])
+
+                loss = dy.pickneglogsoftmax(net_output, y)
+
+                seen_instances += 1
+                total_loss += loss.value()
+
+                loss.backward()
+                trainer.update()
+
+                if (seen_instances > 1 and seen_instances % 1000 == 0):
+                    print("average loss is:", total_loss / seen_instances)
+            if sen_arr.index(sen) % 100 ==0:
+                print str(sen_arr.index(sen)) + "/" + str(len(sen_arr))
+
+
 
 
 if __name__ == '__main__':
+
     train_data = sys.argv[1]
-    vocab_data = sys.argv[2]
-    wordVectors_data = sys.argv[3]
-    word2vec = createWordVecDict(train_data)
-    sen_arr = load_train_data(train_data)
+    #vocab_data = sys.argv[2]
+    #wordVectors_data = sys.argv[3]
 
+    #word2vec = createWordVecDict(train_data)
+    vocab = getDataVocab(train_data)
+    sen_arr, tag_set = load_train_data(train_data)
 
-    train_model(sen_arr)
+    train_model(sen_arr, vocab, tag_set)
 
     pass
