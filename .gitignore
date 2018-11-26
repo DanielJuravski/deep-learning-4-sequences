@@ -1,0 +1,7 @@
+.idea
+**/*.pyc
+**/*.iml
+**/.idea
+env/
+**/env/
+get-pip.py

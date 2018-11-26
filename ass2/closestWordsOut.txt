@@ -1,0 +1,60 @@
+Word is : dog
+closest words are:
+  cat
+  rabbit
+  puppy
+  frog
+  kitten
+  hat
+  hound
+  bird
+
+******************
+Word is : england
+closest words are:
+  ireland
+  scotland
+  australia
+  wales
+  europe
+  france
+  sweden
+  britain
+
+******************
+Word is : john
+closest words are:
+  george
+  robert
+  charles
+  william
+  james
+  henry
+  richard
+  thomas
+
+******************
+Word is : explode
+closest words are:
+  grenadiers
+  slashed
+  appendix
+  monnet
+  instantaneously
+  quests
+  surnames
+  tigra
+
+******************
+Word is : office
+closest words are:
+  board
+  court
+  offices
+  commission
+  authority
+  service
+  house
+  staff
+
+******************
