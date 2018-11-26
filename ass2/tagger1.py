@@ -1,22 +1,12 @@
-import dynet_config
-#dynet_config.set(random_seed=1)
 import dynet as dy
 import sys
 import numpy as np
 import random
 
-#w1 = None
-#w2 = None
-#b1 = None
-#b2 = None
-#E = None
 
-#word2vec = None
-#tag_set = None
-
-N1 = 1000
-EPOCHS =5
-LR = 0.0005
+N1 = 300
+EPOCHS = 2
+LR = 0.001
 
 BATCH_SIZE = 1000
 
@@ -39,6 +29,7 @@ def getDataVocab(train_data):
     size += 1
     vocab['/E'] = size
     size += 1
+    vocab['UUUNNNKKK'] = size
 
     return vocab
 
@@ -49,23 +40,6 @@ def reverse_tag_set(tag_set):
         tag_set_rev[tag_set[tag]] = tag
 
     return tag_set_rev
-
-
-def createWordVecDict(train_data):
-    wordVec = {}
-    eps = np.sqrt(6) / np.sqrt(50)
-    with open(train_data) as f:
-        for line in f:
-            if line != '\n':
-                word, tag = line.split()
-                vector_value = np.random.uniform(low=-eps, high=eps, size=50)
-                if not wordVec.has_key(word):
-                    wordVec[word] = vector_value
-
-    return wordVec
-
-
-
 
 
 def load_tag_set(train_data):
@@ -110,13 +84,17 @@ def load_sentences(data):
     return sen_arr
 
 
-def getWordIndex(sen, k):
+def getWordIndex(sen, k, vocab):
     """
     get word's index from the vocab
     :param sen, k
     :return:
     """
-    i = vocab[sen[k].split()[0]]
+    word = sen[k].split()[0]
+    if vocab.has_key(word):
+        i = vocab[word]
+    else:
+        i = vocab['UUUNNNKKK']
 
     return i
 
@@ -127,24 +105,24 @@ def getVectorWordIndexes(i, sen, vocab):
     if i < 2:
         wpp = vocab['/S/S']
     else:
-        wpp = getWordIndex(sen, i-2)
+        wpp = getWordIndex(sen, i-2, vocab)
 
     if i < 1:
         wp = vocab['/S']
     else:
-        wp = getWordIndex(sen, i-1)
+        wp = getWordIndex(sen, i-1, vocab)
 
-    wi = getWordIndex(sen, i)
+    wi = getWordIndex(sen, i, vocab)
 
     if i > sen_len - 2:
         wn = vocab['/E']
     else:
-        wn = getWordIndex(sen, i+1)
+        wn = getWordIndex(sen, i+1, vocab)
 
     if i > sen_len - 3:
         wnn = vocab['/E/E']
     else:
-        wnn = getWordIndex(sen, i+2)
+        wnn = getWordIndex(sen, i+2, vocab)
 
     total_i = [wpp, wp, wi, wn, wnn]
 
@@ -185,30 +163,29 @@ def train_model(sen_arr, vocab, tag_set):
 
                 loss = -(dy.log(dy.pick(net_output, y)))
                 #loss = loss + dy.l2_norm(m)
-                print word, tag, tag_set_rev[np.argmax(net_output.npvalue())]
+                #print word, tag, tag_set_rev[np.argmax(net_output.npvalue())]
                 seen_instances += 1
                 total_loss += loss.value()
 
                 loss.backward()
                 trainer.update()
 
-                if (seen_instances > 1 and seen_instances % 100 == 0):
+                if (seen_instances > 1 and seen_instances % 1000 == 0):
                     print("average loss is:", total_loss / seen_instances)
 
             if sen_arr.index(sen) % 100 ==0:
                 print "epoch: " +str(epoch) + " curr sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr))
 
-    return (w1, w2, b1, b2, E)
+    return (w1, w2, b1, b2, E, m)
 
 
 def evaluate_dev(dev_data, params, tag_set_rev, vocab):
-    (w1, w2, b1, b2, E) = params
+    (w1, w2, b1, b2, E, m ) = params
     dev_sen_arr = load_sentences(dev_data)
     correct = 0
     wrong = 0
 
     for sen in dev_sen_arr:
-        #dy.renew_cg()
         print "Evaluate dev sen " + str(dev_sen_arr.index(sen) + 1) + " of " + str(len(dev_sen_arr))
         for i in range(len(sen)):
             dy.renew_cg()
@@ -217,6 +194,7 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
             emb_vectors = [E[j] for j in vecs]
 
             net_input = dy.concatenate(emb_vectors)
+            #print net_input.value()
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
 
@@ -246,9 +224,9 @@ if __name__ == '__main__':
     tag_set = load_tag_set(train_data) # tag_set is of form: "TAG NUM"
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
-    (w1, w2, b1, b2, E) = train_model(sen_arr, vocab, tag_set)
+    (w1, w2, b1, b2, E, m) = train_model(sen_arr, vocab, tag_set)
 
-    evaluate_dev(dev_data, (w1, w2, b1, b2, E), tag_set_rev, vocab)
+    evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
 
 
 
