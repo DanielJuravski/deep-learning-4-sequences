@@ -256,14 +256,14 @@ def plotGraphs(dev_losses, dev_accies):
     plt.xlabel('Iterations')
     plt.title('Dev Evaluation')
     plt.savefig('tagger1_loss.png')
-    plt.show()
+    #plt.show()
 
     plt.plot(dev_accies)
     plt.ylabel('Accuracy')
     plt.xlabel('Iterations')
     plt.title('Dev Evaluation')
     plt.savefig('tagger1_acc.png')
-    plt.show()
+    #plt.show()
 
 
 def write2file(prediction):
