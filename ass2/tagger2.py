@@ -2,25 +2,25 @@ import dynet as dy
 import sys
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+import datetime
 
 
-N1 = 500
+N1 = 1000
 EPOCHS = 3
-LR = 0.001
+LR = 0.0005
 
 BATCH_SIZE = 1000
 
 
-def getDataVocab(train_data):
+def getDataVocab(vocab_file):
     vocab = {}
     size = 0
-    with open(train_data) as f:
-        for line in f:
-            if line != '\n':
-                word, tag = line.split()
-                if not vocab.has_key(word):
-                    vocab[word] = size
-                    size += 1
+    with open(vocab_file) as f:
+        for word in f:
+            word = word.rstrip()
+            vocab[word] = size
+            size += 1
     vocab['/S/S'] = size
     size += 1
     vocab['/S'] = size
@@ -29,7 +29,7 @@ def getDataVocab(train_data):
     size += 1
     vocab['/E'] = size
     size += 1
-    vocab['UUUNNNKKK'] = size
+
 
     return vocab
 
@@ -91,10 +91,12 @@ def getWordIndex(sen, k, vocab):
     :return:
     """
     word = sen[k].split()[0]
+    word = word.lower()
     if vocab.has_key(word):
         i = vocab[word]
     else:
-        i = vocab['UUUNNNKKK']
+        i = vocab['UUUNKKK']
+        #print word
 
     return i
 
@@ -129,8 +131,11 @@ def getVectorWordIndexes(i, sen, vocab):
     return total_i
 
 
-def train_model(sen_arr, vocab, tag_set):
-    with open('data/wordVectors.txt') as f:
+def train_model(sen_arr, vocab, tag_set, wordVector_file, dev_data):
+    dev_losses = []
+    dev_accies = []
+    iteration = 0
+    with open(wordVector_file) as f:
         print "load word vectors ..."
         input_wordVectors = []
         for line in f:
@@ -148,7 +153,7 @@ def train_model(sen_arr, vocab, tag_set):
     w2 = m.add_parameters((len(tag_set), N1))
     b1 = m.add_parameters((N1))
     b2 = m.add_parameters((len(tag_set)))
-    E = m.add_lookup_parameters((len(input_wordVectors), len(input_wordVectors[0])))
+    E = m.add_lookup_parameters((len(input_wordVectors)+4, len(input_wordVectors[0])))
     E.init_from_array(np.array(input_wordVectors))
 
     # create trainer
@@ -159,7 +164,7 @@ def train_model(sen_arr, vocab, tag_set):
 
     for epoch in range(EPOCHS):
         random.shuffle(sen_arr)
-        for sen in sen_arr[:1001]:
+        for sen in sen_arr:
             for i in range(len(sen)):
                 word, tag = sen[i].split()
                 wordIndexVector = getVectorWordIndexes(i, sen, vocab)
@@ -171,20 +176,23 @@ def train_model(sen_arr, vocab, tag_set):
                 y = int(tag_set[tag])
 
                 loss = -(dy.log(dy.pick(net_output, y)))
-                #loss = loss + dy.l2_norm(w1)
                 seen_instances += 1
-                total_loss += loss.value()
+                loss_val = loss.value()
+                total_loss += loss_val
+
 
                 loss.backward()
                 trainer.update()
+                iteration += 1
 
-                if (seen_instances > 1 and seen_instances % 1000 == 0):
-                    print("average loss is:", total_loss / seen_instances)
+                if (iteration % 10000 == 0):
+                    print "Epoch: " +str(epoch) + "/" + str(EPOCHS) + " Sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr)), \
+                          "average loss is:", total_loss / seen_instances, "iteration loss: ", loss_val
+                    loss, acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
+                    dev_losses.append(loss)
+                    dev_accies.append(acc)
 
-            if sen_arr.index(sen) % 1000 ==0:
-                print "epoch: " +str(epoch) + " curr sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr))
-
-    return (w1, w2, b1, b2, E, m)
+    return w1, w2, b1, b2, E, m, dev_losses, dev_accies
 
 
 def evaluate_dev(dev_data, params, tag_set_rev, vocab):
@@ -192,50 +200,111 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
     dev_sen_arr = load_sentences(dev_data)
     correct = 0
     wrong = 0
+    total_loss = 0
 
     for sen in dev_sen_arr:
-        print "Evaluate dev sen " + str(dev_sen_arr.index(sen) + 1) + " of " + str(len(dev_sen_arr))
         for i in range(len(sen)):
+            word = sen[i].split()[0]
+            tag = sen[i].split()[1]
+
             dy.renew_cg()
 
             vecs = getVectorWordIndexes(i, sen, vocab)
             emb_vectors = [E[j] for j in vecs]
 
             net_input = dy.concatenate(emb_vectors)
-            #print net_input.value()
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
+            y = int(tag_set[tag])
 
             tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
-
-            word = sen[i].split()[0]
-            tag = sen[i].split()[1]
+            loss = -(dy.log(dy.pick(net_output, y)))
+            total_loss += loss.value()
 
             if tag_hat == tag:
                 correct += 1
             else:
                 wrong += 1
-            #print word, tag, tag_hat
 
-    acc = correct/float(correct+wrong) * 100
-    print "\nDev accuracy is: %.2f" % (acc) + "%"
+    total_loss /= float(correct + wrong)
+    acc = correct / float(correct + wrong)
+    print "Dev accuracy is: %.2f" % (acc * 100) + "%"
 
+    return total_loss, acc
+
+
+def plotGraphs(dev_losses, dev_accies):
+    plt.plot(dev_losses)
+    plt.ylabel('Loss')
+    plt.xlabel('Iterations')
+    plt.title('Dev Evaluation')
+    plt.savefig('tagger2_loss.png')
+    plt.show()
+
+    plt.plot(dev_accies)
+    plt.ylabel('Accuracy')
+    plt.xlabel('Iterations')
+    plt.title('Dev Evaluation')
+    plt.savefig('tagger2_acc.png')
+    plt.show()
+
+
+def predict_test(test_data, params, tag_set_rev, vocab):
+    (w1, w2, b1, b2, E, m ) = params
+    test_sen_arr = load_sentences(test_data)
+    prediction = []
+
+    for sen in test_sen_arr:
+        print "Predict test sen " + str(test_sen_arr.index(sen) + 1) + " of " + str(len(test_sen_arr))
+        for i in range(len(sen)):
+            word = sen[i].strip()
+            dy.renew_cg()
+
+            vecs = getVectorWordIndexes(i, sen, vocab)
+            emb_vectors = [E[j] for j in vecs]
+
+            net_input = dy.concatenate(emb_vectors)
+            l1 = dy.tanh((w1 * net_input) + b1)
+            net_output = dy.softmax((w2 * l1) + b2)
+
+            tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
+
+            prediction.append([word, tag_hat])
+        prediction.append([])
+
+    return prediction
+
+
+def write2file(prediction):
+    with open('tagger2_test_pred', 'w') as f:
+        for i in range(len(prediction)):
+            if len(prediction[i]) != 0:
+                f.write("%s %s \n" % (prediction[i][0], prediction[i][1]))
+            else:
+                f.write("\n")
 
 
 if __name__ == '__main__':
 
     train_data = sys.argv[1]
     dev_data = sys.argv[2]
+    test_data = sys.argv[3]
+    vocab_file = sys.argv[4]
+    wordVector_file = sys.argv[5]
 
-    vocab = getDataVocab(train_data)
+    print(datetime.datetime.now().time())
+
+    vocab = getDataVocab(vocab_file)
     sen_arr = load_sentences(train_data)
     tag_set = load_tag_set(train_data) # tag_set is of form: "TAG NUM"
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
-    (w1, w2, b1, b2, E, m) = train_model(sen_arr, vocab, tag_set)
+    (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, wordVector_file, dev_data)
+    plotGraphs(dev_losses, dev_accies)
 
-    evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
+    prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
+    write2file(prediction)
+
+    print(datetime.datetime.now().time())
 
 
-
-    pass
