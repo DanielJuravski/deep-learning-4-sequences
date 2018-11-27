@@ -4,9 +4,9 @@ import numpy as np
 import random
 
 
-N1 = 2000
+N1 = 500
 EPOCHS = 3
-LR = 0.0005
+LR = 0.001
 
 BATCH_SIZE = 1000
 
@@ -130,6 +130,14 @@ def getVectorWordIndexes(i, sen, vocab):
 
 
 def train_model(sen_arr, vocab, tag_set):
+    with open('data/wordVectors.txt') as f:
+        print "load word vectors ..."
+        input_wordVectors = []
+        for line in f:
+            number_strings = line.split()  # Split the line on runs of whitespace
+            numbers = [float(n) for n in number_strings]  # Convert to floats
+            input_wordVectors.append(numbers)
+
     # renew the computation graph
     dy.renew_cg()
 
@@ -140,16 +148,18 @@ def train_model(sen_arr, vocab, tag_set):
     w2 = m.add_parameters((len(tag_set), N1))
     b1 = m.add_parameters((N1))
     b2 = m.add_parameters((len(tag_set)))
-    E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(50)))
+    E = m.add_lookup_parameters((len(input_wordVectors), len(input_wordVectors[0])))
+    E.init_from_array(np.array(input_wordVectors))
 
     # create trainer
     trainer = dy.AdamTrainer(m, alpha=LR)
+
     total_loss = 0
     seen_instances = 0
 
     for epoch in range(EPOCHS):
         random.shuffle(sen_arr)
-        for sen in sen_arr:
+        for sen in sen_arr[:1001]:
             for i in range(len(sen)):
                 word, tag = sen[i].split()
                 wordIndexVector = getVectorWordIndexes(i, sen, vocab)
@@ -163,15 +173,16 @@ def train_model(sen_arr, vocab, tag_set):
                 loss = -(dy.log(dy.pick(net_output, y)))
                 #loss = loss + dy.l2_norm(w1)
                 seen_instances += 1
-                loss_val = loss.value()
-                total_loss += loss_val
+                total_loss += loss.value()
 
                 loss.backward()
                 trainer.update()
 
                 if (seen_instances > 1 and seen_instances % 1000 == 0):
-                    print("epoch: " +str(epoch) + " curr sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr)),
-                          "average loss is:", total_loss / seen_instances, "iteration loss: ", loss_val)
+                    print("average loss is:", total_loss / seen_instances)
+
+            if sen_arr.index(sen) % 1000 ==0:
+                print "epoch: " +str(epoch) + " curr sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr))
 
     return (w1, w2, b1, b2, E, m)
 
@@ -180,30 +191,25 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
     (w1, w2, b1, b2, E, m ) = params
     dev_sen_arr = load_sentences(dev_data)
     correct = 0
-    wrong = 1
-    losses = []
-    accuracies = []
-    acc = 0
+    wrong = 0
 
     for sen in dev_sen_arr:
         print "Evaluate dev sen " + str(dev_sen_arr.index(sen) + 1) + " of " + str(len(dev_sen_arr))
         for i in range(len(sen)):
-            word = sen[i].split()[0]
-            tag = sen[i].split()[1]
-
             dy.renew_cg()
 
             vecs = getVectorWordIndexes(i, sen, vocab)
             emb_vectors = [E[j] for j in vecs]
 
             net_input = dy.concatenate(emb_vectors)
+            #print net_input.value()
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
-            y = int(tag_set[tag])
 
             tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
-            loss = -(dy.log(dy.pick(net_output, y)))
-            losses.append(loss.value())
+
+            word = sen[i].split()[0]
+            tag = sen[i].split()[1]
 
             if tag_hat == tag:
                 correct += 1
@@ -211,13 +217,8 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
                 wrong += 1
             #print word, tag, tag_hat
 
-            acc = correct/float(correct+wrong)
-            accuracies.append(acc)
-
-
-    print "\nDev accuracy is: %.2f" % (acc*100) + "%"
-
-    return losses, accuracies
+    acc = correct/float(correct+wrong) * 100
+    print "\nDev accuracy is: %.2f" % (acc) + "%"
 
 
 
@@ -225,11 +226,6 @@ if __name__ == '__main__':
 
     train_data = sys.argv[1]
     dev_data = sys.argv[2]
-
-    #LR = float(sys.argv[3])
-    #N1 = int(sys.argv[4])
-    #EPOCHS = int(sys.argv[5])
-
 
     vocab = getDataVocab(train_data)
     sen_arr = load_sentences(train_data)
