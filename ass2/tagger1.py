@@ -14,16 +14,25 @@ BATCH_SIZE = 1000
 TRAIN_CUTOFF=float("inf")
 IGNORE_O=True
 
-def getDataVocab(train_data):
+def getDataVocab(train_data, if_input_embedding, vocab_file):
     vocab = {}
     size = 0
-    with open(train_data) as f:
-        for line in f:
-            if line != '\n':
-                word, tag = line.split()
-                if not vocab.has_key(word):
-                    vocab[word] = size
-                    size += 1
+    if if_input_embedding == 'embedding':
+        with open(vocab_file) as f:
+            for word in f:
+                word = word.rstrip()
+                vocab[word] = size
+                size += 1
+    else:
+        with open(train_data) as f:
+            for line in f:
+                if line != '\n':
+                    word, tag = line.split()
+                    if not vocab.has_key(word):
+                        vocab[word] = size
+                        size += 1
+        vocab['UUUNKKK'] = size
+
     vocab['/S/S'] = size
     size += 1
     vocab['/S'] = size
@@ -32,7 +41,7 @@ def getDataVocab(train_data):
     size += 1
     vocab['/E'] = size
     size += 1
-    vocab['UUUNNNKKK'] = size
+
 
     return vocab
 
@@ -96,8 +105,10 @@ def getWordIndex(sen, k, vocab):
     word = sen[k].split()[0]
     if vocab.has_key(word):
         i = vocab[word]
+        return i
+
     else:
-        i = vocab['UUUNNNKKK']
+        i = vocab['UUUNKKK']
 
     return i
 
@@ -132,10 +143,11 @@ def getVectorWordIndexes(i, sen, vocab):
     return total_i
 
 
-def train_model(sen_arr, vocab, tag_set, dev_data):
+def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file):
     dev_losses = []
     dev_accies = []
     iteration = 0
+
     # renew the computation graph
     dy.renew_cg()
 
@@ -146,10 +158,28 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
     w2 = m.add_parameters((len(tag_set), N1))
     b1 = m.add_parameters((N1))
     b2 = m.add_parameters((len(tag_set)))
-    E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(250)))
+
+    if if_input_embedding == 'embedding':
+        with open(wordVector_file) as f:
+            numbers = 0
+            print "load word vectors ..."
+            input_wordVectors = []
+            for line in f:
+                number_strings = line.split()  # Split the line on runs of whitespace
+                numbers = [float(n) for n in number_strings]  # Convert to floats
+                input_wordVectors.append(numbers)
+            while len(input_wordVectors) < len(vocab):
+                eps = np.sqrt(6)/np.sqrt(len(numbers))
+                vec = np.random.uniform(-eps, eps, len(numbers))
+                input_wordVectors.append(vec)
+        E = m.add_lookup_parameters((len(vocab), len(input_wordVectors[0])))
+        E.init_from_array(np.array(input_wordVectors))
+    else:
+        E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(250)))
 
     # create trainer
     trainer = dy.AdamTrainer(m)
+
     total_loss = 0
     seen_instances = 0
 
@@ -172,7 +202,6 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
                 y = int(tag_set[tag])
 
                 loss = -(dy.log(dy.pick(net_output, y)))
-                #loss = loss + dy.l2_norm(w1)
                 seen_instances += 1
                 loss_val = loss.value()
                 total_loss += loss_val
@@ -180,7 +209,6 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
                 loss.backward()
                 trainer.update()
                 iteration += 1
-
 
 
         print ("Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + \
@@ -287,24 +315,34 @@ def write2file(prediction):
                 f.write("\n")
 
 
+
 if __name__ == '__main__':
 
     train_data = sys.argv[1]
     dev_data = sys.argv[2]
     test_data = sys.argv[3]
+    if_input_embedding = sys.argv[4]
+    vocab_file = None
+    wordVector_file = None
+    if if_input_embedding == 'embedding':
+        vocab_file = sys.argv[5]
+        wordVector_file = sys.argv[6]
+    elif if_input_embedding == 'no-embedding':
+        pass
+    else:
+        print "Input form should be:\n train_data dev_data test_data [embedding/no-embedding] (if embedding) vocab_file wordVector_file"
+        raise AssertionError()
 
-    #LR = float(sys.argv[4])
-    #N1 = int(sys.argv[5])
-    #EPOCHS = int(sys.argv[6])
 
     start_time = (datetime.datetime.now().time())
 
-    vocab = getDataVocab(train_data)
+
+    vocab = getDataVocab(train_data, if_input_embedding, vocab_file)
     sen_arr = load_sentences(train_data)
     tag_set = load_tag_set(train_data) # tag_set is of form: "TAG NUM"
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
-    (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data)
+    (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file)
     plotGraphs(dev_losses, dev_accies)
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
