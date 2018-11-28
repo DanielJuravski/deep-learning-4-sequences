@@ -11,6 +11,7 @@ EPOCHS = 3
 LR = 0.0005
 
 BATCH_SIZE = 1000
+IGNORE_O=True
 
 
 def getDataVocab(vocab_file):
@@ -223,7 +224,8 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
             total_loss += loss.value()
 
             if tag_hat == tag:
-                correct += 1
+                if not (IGNORE_O and tag == 'O'):
+                    correct += 1
             else:
                 wrong += 1
 

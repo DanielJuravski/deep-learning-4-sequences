@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 import datetime
 
 
-N1 = 1000
-EPOCHS = 3
+N1 = 50
+EPOCHS = 10
 LR = 0.0001
 
 BATCH_SIZE = 1000
-
+TRAIN_CUTOFF=float("inf")
+IGNORE_O=True
 
 def getDataVocab(train_data):
     vocab = {}
@@ -148,13 +149,17 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
     E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(250)))
 
     # create trainer
-    trainer = dy.AdamTrainer(m, alpha=LR)
+    trainer = dy.AdamTrainer(m)
     total_loss = 0
     seen_instances = 0
 
     for epoch in range(EPOCHS):
         random.shuffle(sen_arr)
         for sen_i in range(len(sen_arr)):
+            if sen_i % 1000 == 0:
+                print("training sentance: %d" %sen_i)
+            if sen_i > TRAIN_CUTOFF:
+                continue
             sen = sen_arr[sen_i]
             for i in range(len(sen)):
                 word, tag = sen[i].split()
@@ -176,12 +181,13 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
                 trainer.update()
                 iteration += 1
 
-                if (iteration % 10000 == 0):
-                    print "Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + " Sentence: " + str(sen_i) + "/" + str(len(sen_arr)), \
-                          "average loss is:", total_loss / seen_instances, "iteration loss: ", loss_val
-                    loss, acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
-                    dev_losses.append(loss)
-                    dev_accies.append(acc)
+
+
+        print ("Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + \
+            "average train loss is:", total_loss / seen_instances)
+        dev_loss, dev_acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
+        dev_losses.append(dev_loss)
+        dev_accies.append(dev_acc)
 
     return (w1, w2, b1, b2, E, m, dev_losses, dev_accies)
 
@@ -191,6 +197,7 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
     dev_sen_arr = load_sentences(dev_data)
     correct = 0
     wrong = 0
+    counter = 0
     total_loss = 0
 
     for sen in dev_sen_arr:
@@ -212,12 +219,14 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
             loss = -(dy.log(dy.pick(net_output, y)))
             total_loss += loss.value()
 
+            counter +=1
             if tag_hat == tag:
-                correct += 1
+                if not (IGNORE_O and tag == 'O'):
+                    correct += 1
             else:
                 wrong += 1
 
-    total_loss /= float(correct + wrong)
+    total_loss /= float(counter)
     acc = correct / float(correct + wrong)
     print "Dev accuracy is: %.2f" % (acc*100) + "%"
 
