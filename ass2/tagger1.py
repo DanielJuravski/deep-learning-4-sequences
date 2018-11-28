@@ -154,7 +154,8 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
 
     for epoch in range(EPOCHS):
         random.shuffle(sen_arr)
-        for sen in sen_arr:
+        for sen_i in range(len(sen_arr)):
+            sen = sen_arr[sen_i]
             for i in range(len(sen)):
                 word, tag = sen[i].split()
                 wordIndexVector = getVectorWordIndexes(i, sen, vocab)
@@ -175,8 +176,8 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
                 trainer.update()
                 iteration += 1
 
-                if (iteration % 1 == 0):
-                    print "Epoch: " +str(epoch+1) + "/" + str(EPOCHS) + " Sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr)), \
+                if (iteration % 10000 == 0):
+                    print "Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + " Sentence: " + str(sen_i) + "/" + str(len(sen_arr)), \
                           "average loss is:", total_loss / seen_instances, "iteration loss: ", loss_val
                     loss, acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
                     dev_losses.append(loss)
@@ -193,7 +194,6 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
     total_loss = 0
 
     for sen in dev_sen_arr:
-        #print "Evaluate dev sen " + str(dev_sen_arr.index(sen) + 1) + " of " + str(len(dev_sen_arr))
         for i in range(len(sen)):
             word = sen[i].split()[0]
             tag = sen[i].split()[1]
@@ -229,8 +229,10 @@ def predict_test(test_data, params, tag_set_rev, vocab):
     test_sen_arr = load_sentences(test_data)
     prediction = []
 
-    for sen in test_sen_arr:
-        print "Predict test sen " + str(test_sen_arr.index(sen) + 1) + " of " + str(len(test_sen_arr))
+    for sen_i in range(len(test_sen_arr)):
+        sen = test_sen_arr[sen_i]
+        if sen_i % 100 == 0:
+            print "Predict test sen " + str(sen_i + 1) + " of " + str(len(test_sen_arr))
         for i in range(len(sen)):
             word = sen[i].strip()
             dy.renew_cg()
@@ -286,7 +288,7 @@ if __name__ == '__main__':
     #N1 = int(sys.argv[5])
     #EPOCHS = int(sys.argv[6])
 
-    print(datetime.datetime.now().time())
+    start_time = (datetime.datetime.now().time())
 
     vocab = getDataVocab(train_data)
     sen_arr = load_sentences(train_data)
@@ -299,5 +301,6 @@ if __name__ == '__main__':
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
     write2file(prediction)
 
+    print start_time
     print(datetime.datetime.now().time())
 
