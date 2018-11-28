@@ -289,25 +289,40 @@ def predict_test(test_data, params, tag_set_rev, vocab):
     return prediction
 
 
-def plotGraphs(dev_losses, dev_accies):
+def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type):
+    if if_input_embedding == 'no-embedding':
+        part = 'part1_'
+    else:
+        part = 'part3_'
+
+    # loss graph
+    file_name = str(part) + str(data_type) + "_loss.png"
     plt.plot(dev_losses)
     plt.ylabel('Loss')
     plt.xlabel('Iterations')
     plt.title('Dev Evaluation')
-    plt.savefig('tagger1_loss.png')
+    plt.savefig(file_name)
     plt.close()
     #plt.show()
 
+    # acc graph
+    file_name = str(part) + str(data_type) + "_acc.png"
     plt.plot(dev_accies)
     plt.ylabel('Accuracy')
     plt.xlabel('Iterations')
     plt.title('Dev Evaluation')
-    plt.savefig('tagger1_acc.png')
+    plt.savefig(file_name)
     #plt.show()
 
 
-def write2file(prediction):
-    with open('tagger1_test_pred', 'w') as f:
+def write2file(prediction, if_input_embedding, data_type):
+    if if_input_embedding == 'no-embedding':
+        part = 'part1_'
+    else:
+        part = 'part3_'
+    file_name = str(part) + str(data_type) + "_test.pred"
+
+    with open(file_name, 'w') as f:
         for i in range(len(prediction)):
             if len(prediction[i]) != 0:
                 f.write("%s %s \n" % (prediction[i][0], prediction[i][1]))
@@ -321,16 +336,17 @@ if __name__ == '__main__':
     train_data = sys.argv[1]
     dev_data = sys.argv[2]
     test_data = sys.argv[3]
-    if_input_embedding = sys.argv[4]
+    data_type = sys.argv[4]
+    if_input_embedding = sys.argv[5]
     vocab_file = None
     wordVector_file = None
     if if_input_embedding == 'embedding':
-        vocab_file = sys.argv[5]
-        wordVector_file = sys.argv[6]
+        vocab_file = sys.argv[6]
+        wordVector_file = sys.argv[7]
     elif if_input_embedding == 'no-embedding':
         pass
     else:
-        print "Input form should be:\n train_data dev_data test_data [embedding/no-embedding] (if embedding) vocab_file wordVector_file"
+        print "Input form should be:\n train_data dev_data test_data data_type [embedding/no-embedding] (if embedding) vocab_file wordVector_file"
         raise AssertionError()
 
 
@@ -343,10 +359,10 @@ if __name__ == '__main__':
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
     (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file)
-    plotGraphs(dev_losses, dev_accies)
+    plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type)
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
-    write2file(prediction)
+    write2file(prediction, if_input_embedding, data_type)
 
     print start_time
     print(datetime.datetime.now().time())
