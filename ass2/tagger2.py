@@ -186,7 +186,7 @@ def train_model(sen_arr, vocab, tag_set, wordVector_file, dev_data):
                 iteration += 1
 
                 if (iteration % 10000 == 0):
-                    print "Epoch: " +str(epoch) + "/" + str(EPOCHS) + " Sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr)), \
+                    print "Epoch: " +str(epoch+1) + "/" + str(EPOCHS) + " Sentence: " + str(sen_arr.index(sen)) + "/" + str(len(sen_arr)), \
                           "average loss is:", total_loss / seen_instances, "iteration loss: ", loss_val
                     loss, acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
                     dev_losses.append(loss)
@@ -239,6 +239,7 @@ def plotGraphs(dev_losses, dev_accies):
     plt.xlabel('Iterations')
     plt.title('Dev Evaluation')
     plt.savefig('tagger2_loss.png')
+    plt.close()
     #plt.show()
 
     plt.plot(dev_accies)
