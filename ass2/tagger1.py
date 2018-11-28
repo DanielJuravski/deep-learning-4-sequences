@@ -145,7 +145,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data):
     w2 = m.add_parameters((len(tag_set), N1))
     b1 = m.add_parameters((N1))
     b2 = m.add_parameters((len(tag_set)))
-    E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(50)))
+    E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(250)))
 
     # create trainer
     trainer = dy.AdamTrainer(m, alpha=LR)
