@@ -5,17 +5,31 @@ import random
 import matplotlib.pyplot as plt
 import datetime
 
+UUUNKKK = 'UUUNKKK'
+
+UNK_NUM = 'UNK_num'
+
+UNK_ALLCAP = 'UNK_ALLCAP'
+
+UNK_CAP_START = 'UNK_CapStart'
 
 N1 = 50
-EPOCHS = 10
+EPOCHS = 5
 LR = 0.0001
-
+REGULARIZATION_FACTOR = 1
 BATCH_SIZE = 1000
-TRAIN_CUTOFF=float("inf")
-IGNORE_O=True
+
+
+IGNORE_O = True
+MIN_WORD_APPEARANCE = 1
+TRAIN_CUTOFF = float("inf")
+
+uncommon_words = set()
+
 
 def getDataVocab(train_data, if_input_embedding, vocab_file):
     vocab = {}
+    word_count = {}
     size = 0
     if if_input_embedding == 'embedding':
         with open(vocab_file) as f:
@@ -28,10 +42,14 @@ def getDataVocab(train_data, if_input_embedding, vocab_file):
             for line in f:
                 if line != '\n':
                     word, tag = line.split()
+                    l_word = word.lower()
+                    if l_word in word_count:
+                        word_count[l_word] += 1
+                    else:
+                        word_count[l_word] = 1
                     if not vocab.has_key(word):
                         vocab[word] = size
                         size += 1
-        vocab['UUUNKKK'] = size
 
     vocab['/S/S'] = size
     size += 1
@@ -41,7 +59,21 @@ def getDataVocab(train_data, if_input_embedding, vocab_file):
     size += 1
     vocab['/E'] = size
     size += 1
+    vocab[UNK_CAP_START] = size
+    size += 1
+    vocab[UNK_ALLCAP] = size
+    size += 1
+    vocab[UNK_NUM] = size
+    size += 1
+    vocab[UUUNKKK] = size
 
+    global uncommon_words
+    if if_input_embedding == 'embedding':
+        uncommon_words = set()
+    else:
+        for num, w in enumerate(word_count):
+            if num <= MIN_WORD_APPEARANCE:
+                uncommon_words.add(w)
 
     return vocab
 
@@ -52,6 +84,14 @@ def reverse_tag_set(tag_set):
         tag_set_rev[tag_set[tag]] = tag
 
     return tag_set_rev
+
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
 
 def load_tag_set(train_data):
@@ -103,12 +143,18 @@ def getWordIndex(sen, k, vocab):
     :return:
     """
     word = sen[k].split()[0]
-    if vocab.has_key(word):
+    if vocab.has_key(word) and word.lower() not in uncommon_words:
         i = vocab[word]
-        return i
-
+    elif vocab.has_key(word.lower()) and word.lower() not in uncommon_words:
+        i = vocab[word.lower()]
+    elif word.isupper():
+        i = vocab[UNK_ALLCAP]
+    elif word[0].isupper():
+        i = vocab[UNK_CAP_START]
+    elif is_number(word):
+        i = vocab[UNK_NUM]
     else:
-        i = vocab['UUUNKKK']
+        i = vocab[UUUNKKK]
 
     return i
 
@@ -202,6 +248,8 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 y = int(tag_set[tag])
 
                 loss = -(dy.log(dy.pick(net_output, y)))
+                #loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
+
                 seen_instances += 1
                 loss_val = loss.value()
                 total_loss += loss_val
