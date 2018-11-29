@@ -27,7 +27,7 @@ TRAIN_CUTOFF = float("inf")
 uncommon_words = set()
 
 
-def getDataVocab(train_data, if_input_embedding, vocab_file):
+def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     vocab = {}
     word_count = {}
     size = 0
@@ -51,6 +51,28 @@ def getDataVocab(train_data, if_input_embedding, vocab_file):
                         vocab[word] = size
                         size += 1
 
+    if if_subwords == 'subwords':
+        subwords_dict = {}
+        for key in vocab:
+            if key.isalpha() and len(key) > 2:
+                pre_key = key[:3]
+                suff_key = key[-3:]
+                if not subwords_dict.has_key(pre_key):
+                    subwords_dict[pre_key] = size
+                    size += 1
+                if not subwords_dict.has_key(suff_key):
+                    subwords_dict[suff_key] = size
+                    size += 1
+
+        for key, val in subwords_dict.iteritems():
+            if not vocab.has_key(key):
+                vocab[key] = val
+
+        vocab['PRE_UUUNKKK'] = size
+        size += 1
+        vocab['SUFF_UUUNKKK'] = size
+        size += 1
+
     vocab['/S/S'] = size
     size += 1
     vocab['/S'] = size
@@ -66,6 +88,7 @@ def getDataVocab(train_data, if_input_embedding, vocab_file):
     vocab[UNK_NUM] = size
     size += 1
     vocab[UUUNKKK] = size
+    size += 1
 
     global uncommon_words
     if if_input_embedding == 'embedding':
@@ -189,7 +212,7 @@ def getVectorWordIndexes(i, sen, vocab):
     return total_i
 
 
-def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file):
+def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords):
     dev_losses = []
     dev_accies = []
     iteration = 0
@@ -378,6 +401,10 @@ def write2file(prediction, if_input_embedding, data_type):
                 f.write("\n")
 
 
+def usasge():
+    print "Input form should be:\n train_data dev_data test_data data_type [subwords/nosubwords] " \
+          "[embedding/no-embedding] (if embedding) vocab_file wordVector_file"
+    raise AssertionError()
 
 if __name__ == '__main__':
 
@@ -385,28 +412,30 @@ if __name__ == '__main__':
     dev_data = sys.argv[2]
     test_data = sys.argv[3]
     data_type = sys.argv[4]
-    if_input_embedding = sys.argv[5]
+    if_subwords = sys.argv[5]
+    if if_subwords != 'subwords' and if_subwords != 'no-subwords':
+        usasge()
+    if_input_embedding = sys.argv[6]
     vocab_file = None
     wordVector_file = None
     if if_input_embedding == 'embedding':
-        vocab_file = sys.argv[6]
-        wordVector_file = sys.argv[7]
+        vocab_file = sys.argv[7]
+        wordVector_file = sys.argv[8]
     elif if_input_embedding == 'no-embedding':
         pass
     else:
-        print "Input form should be:\n train_data dev_data test_data data_type [embedding/no-embedding] (if embedding) vocab_file wordVector_file"
-        raise AssertionError()
+        usasge()
 
 
     start_time = (datetime.datetime.now().time())
 
 
-    vocab = getDataVocab(train_data, if_input_embedding, vocab_file)
+    vocab = getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords)
     sen_arr = load_sentences(train_data)
     tag_set = load_tag_set(train_data) # tag_set is of form: "TAG NUM"
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
-    (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file)
+    (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords)
     plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type)
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
