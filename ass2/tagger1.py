@@ -15,8 +15,8 @@ UNK_CAP_START = 'UNK_CapStart'
 
 N1 = 50
 EPOCHS = 5
-LR = 0.0001
 REGULARIZATION_FACTOR = 0.1
+LR = 0.001
 BATCH_SIZE = 1000
 
 
@@ -56,9 +56,11 @@ def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     if if_subwords == 'subwords':
         subwords_dict = {}
         for key in vocab:
-            if key.isalpha() and len(key) > 2:
+            if len(key) > 2: #and key.isalpha()
                 pre_key = key[:3]
+                pre_key = "PRE_" + pre_key
                 suff_key = key[-3:]
+                suff_key = "SUFF_" + suff_key
                 if not subwords_dict.has_key(pre_key):
                     subwords_dict[pre_key] = 0
                 if not subwords_dict.has_key(suff_key):
@@ -216,7 +218,9 @@ def getVectorWordIndexes(i, sen, vocab):
 def getPreSuffWordIndex(sen, j, vocab):
     word = sen[j]
     pre_word = word[:3]
+    pre_word = "PRE_" + pre_word
     suff_word = word[-3:]
+    suff_word = "SUFF_" + suff_word
     if vocab.has_key(pre_word):
         pre_val = vocab[pre_word]
     else:
@@ -299,7 +303,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
         E = m.add_lookup_parameters((len(vocab), 50), init='uniform', scale=(np.sqrt(6)/np.sqrt(250)))
 
     # create trainer
-    trainer = dy.AdamTrainer(m)
+    trainer = dy.AdamTrainer(m, alpha=LR)
 
     total_loss = 0
     seen_instances = 0
@@ -433,11 +437,13 @@ def predict_test(test_data, params, tag_set_rev, vocab):
     return prediction
 
 
-def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type):
+def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type, if_subwords):
     if if_input_embedding == 'no-embedding':
         part = 'part1_'
     else:
         part = 'part3_'
+    if if_subwords == 'subwords':
+        part = str(part) + 'subwords_'
 
     # loss graph
     file_name = str(part) + str(data_type) + "_loss.png"
@@ -459,11 +465,13 @@ def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type):
     #plt.show()
 
 
-def write2file(prediction, if_input_embedding, data_type):
+def write2file(prediction, if_input_embedding, data_type, if_subwords):
     if if_input_embedding == 'no-embedding':
         part = 'part1_'
     else:
         part = 'part3_'
+    if if_subwords == 'subwords':
+        part = str(part) + 'subwords_'
     file_name = str(part) + str(data_type) + "_test.pred"
 
     with open(file_name, 'w') as f:
@@ -509,11 +517,12 @@ if __name__ == '__main__':
     tag_set_rev = reverse_tag_set(tag_set) # tag_set_rev is of form: "NUM TAG"
 
     (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords)
-    plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type)
-    plotGraphs(train_losses, train_acc, if_input_embedding, "train")
+
+    plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type, if_subwords)
+    plotGraphs(train_losses, train_acc, if_input_embedding, "train", if_subwords)
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
-    write2file(prediction, if_input_embedding, data_type)
+    write2file(prediction, if_input_embedding, data_type, if_subwords)
 
     print start_time
     print(datetime.datetime.now().time())

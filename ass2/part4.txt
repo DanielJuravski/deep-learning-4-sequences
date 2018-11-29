@@ -1,0 +1,22 @@
+POS best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+NER best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+
+- We looped over out existing vocabulary of words (that we got from the train data or from the trained embedding matrix),
+we looked over every word there, checked if its' length bigger than 2 (to ensure prefix and suffix size to be in a size of 3),
+and then parse the word to its' prefix of 3 letters and suffix of 3 letters and add it to the existing vocabulary.
+We had to make sure that those prefixes and suffixes getting a special signature and not overwriting existing words.
+for example: the prefix of the word 'themselves' is 'the', we need to take care about the cases when we use the embedding of the prefix 'the'
+and when we use the embedding of the word 'the'.
+

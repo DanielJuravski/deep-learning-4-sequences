@@ -1,0 +1,32 @@
+How to run my tagger:
+
+$python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} ${subword_flag} ${embedding_flag} ${vocab_file} ${wordVectors_file}
+
+${train_data}       = path to the train data
+${dev_data}         = path to the dev data
+${test_data}        = path to the test data
+${data_type}        = just for convenient output files naming
+${subword_flag}     = 'subwords' (if using subwords) or 'no-subwords' (if not using subwords)
+${embedding_flag}   = 'embedding' (if using embedding) or 'no-embedding' (if not using embedding)
+${vocab_file}       = path to the vocab file (if using embedding)
+${wordVectors_file} = path to the word vectors file (if using embedding)
+
+
+
+Running Part1:
+--------------
+        $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} no-subwords no-embedding
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos no-subwords no-embedding
+
+
+Running Part3:
+--------------
+        $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} no-subwords embedding ${vocab_file} ${wordVectors_file}
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos no-subwords embedding data/vocab.txt data/wordVectors.txt
+
+
+Running Part4:
+--------------
+        $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} subwords [embedding/no-embedding] ${vocab_file} ${wordVectors_file}
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos subwords no-embedding
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos subwords embedding data/vocab.txt data/wordVectors.txt
