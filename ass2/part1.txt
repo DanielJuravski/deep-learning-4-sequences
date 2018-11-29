@@ -1,0 +1,25 @@
+POS best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+NER best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+Considerations:
+- There were words that appeared in the dev data but not in the train data,
+we figured it out with adding to the train data the 'UUUNKKK' word. Every word in the dev data that didn't has a representation
+in the embedding matrix, was represented as an 'UUUNKKK' word.
+- That approach was good, but we thought how to do it better, so we add more 'signatures' to the E matrix.
+####
+Eyal:
+####
+- The last thing was to think about the vectors in places (-2,-1) and (+1,+2) for the first and last words in the sequence.
+We added 4 vectors to the E matrix [/S/S], [/S], [/E], [/E/E] and those represented that places.
+

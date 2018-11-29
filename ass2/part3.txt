@@ -1,0 +1,21 @@
+POS best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+NER best parameters:
+Hidden layer size =
+Optimizer =
+Learning Rate =
+(?)Regularization =
+Epochs =
+
+Considerations:
+- There were words that appear in the training file but not the embeddings file, we figured it out on the same way like in part 1.
+We used the same 'signatures' that we created and add them to the embedding matrix. Every train (and dev) word that wasn't find
+in the embedding matrix, was represented with those signatures.
+- The embedding vocabulary represented all with lower-case. If after we parsed each word (trying to fit it to one of our signatures),
+and still there was not a suitable signature to represent it, we have just lower the word trying to search it in the vocab.
+- Did accuracy improve over the tagger without the pre-trained embeddings? by how much?
