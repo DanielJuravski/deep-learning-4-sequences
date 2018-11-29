@@ -58,15 +58,14 @@ def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
                 pre_key = key[:3]
                 suff_key = key[-3:]
                 if not subwords_dict.has_key(pre_key):
-                    subwords_dict[pre_key] = size
-                    size += 1
+                    subwords_dict[pre_key] = 0
                 if not subwords_dict.has_key(suff_key):
-                    subwords_dict[suff_key] = size
-                    size += 1
+                    subwords_dict[suff_key] = 0
 
         for key, val in subwords_dict.iteritems():
             if not vocab.has_key(key):
-                vocab[key] = val
+                vocab[key] = size
+                size += 1
 
         vocab['PRE_UUUNKKK'] = size
         size += 1
@@ -212,6 +211,57 @@ def getVectorWordIndexes(i, sen, vocab):
     return total_i
 
 
+def getPreSuffWordIndex(sen, j, vocab):
+    word = sen[j]
+    pre_word = word[:3]
+    suff_word = word[-3:]
+    if vocab.has_key(pre_word):
+        pre_val = vocab[pre_word]
+    else:
+        pre_val = vocab['PRE_UUUNKKK']
+    if vocab.has_key(suff_word):
+        suff_val = vocab[suff_word]
+    else:
+        suff_val = vocab['SUFF_UUUNKKK']
+
+    return pre_val, suff_val
+
+
+def getVectorPreSuffWordIndexes(i, sen, vocab):
+    sen_len = len(sen)
+
+    if i < 2:
+        wpp_pre = vocab['/S/S']
+        wpp_suff = vocab['/S/S']
+    else:
+        wpp_pre, wpp_suff = getPreSuffWordIndex(sen, i - 2, vocab)
+
+    if i < 1:
+        wp_pre = vocab['/S']
+        wp_suff = vocab['/S']
+    else:
+        wp_pre, wp_suff = getPreSuffWordIndex(sen, i - 1, vocab)
+
+    wi_pre, wi_suff = getPreSuffWordIndex(sen, i, vocab)
+
+    if i > sen_len - 2:
+        wn_pre = vocab['/E']
+        wn_suff = vocab['/E']
+    else:
+        wn_pre, wn_suff = getPreSuffWordIndex(sen, i + 1, vocab)
+
+    if i > sen_len - 3:
+        wnn_pre = vocab['/E/E']
+        wnn_suff = vocab['/E/E']
+    else:
+        wnn_pre, wnn_suff = getPreSuffWordIndex(sen, i + 2, vocab)
+
+    pre_total_i = [wpp_pre, wp_pre, wi_pre, wn_pre, wnn_pre]
+    suff_total_i = [wpp_suff, wp_suff, wi_suff, wn_suff, wnn_suff]
+
+    return pre_total_i, suff_total_i
+
+
 def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords):
     dev_losses = []
     dev_accies = []
@@ -261,11 +311,21 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 continue
             sen = sen_arr[sen_i]
             for i in range(len(sen)):
+                dy.renew_cg()
                 word, tag = sen[i].split()
                 wordIndexVector = getVectorWordIndexes(i, sen, vocab)
-                dy.renew_cg()
                 emb_vectors = [E[j] for j in wordIndexVector]
-                net_input = dy.concatenate(emb_vectors)
+                con_emb_vectors = dy.concatenate(emb_vectors)
+                if if_subwords == 'subwords':
+                    preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
+                    pre_vectors = [E[j] for j in preWordIndexVector]
+                    suff_vectors = [E[j] for j in suffWordIndexVector]
+                    con_pre_vectors = dy.concatenate(pre_vectors)
+                    con_suff_vectors = dy.concatenate(suff_vectors)
+                    net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+                else:
+                    net_input = con_emb_vectors
+
                 l1 = dy.tanh((w1*net_input)+b1)
                 net_output = dy.softmax((w2*l1)+b2)
                 y = int(tag_set[tag])
@@ -401,7 +461,7 @@ def write2file(prediction, if_input_embedding, data_type):
                 f.write("\n")
 
 
-def usasge():
+def usage():
     print "Input form should be:\n train_data dev_data test_data data_type [subwords/nosubwords] " \
           "[embedding/no-embedding] (if embedding) vocab_file wordVector_file"
     raise AssertionError()
@@ -414,7 +474,7 @@ if __name__ == '__main__':
     data_type = sys.argv[4]
     if_subwords = sys.argv[5]
     if if_subwords != 'subwords' and if_subwords != 'no-subwords':
-        usasge()
+        usage()
     if_input_embedding = sys.argv[6]
     vocab_file = None
     wordVector_file = None
@@ -424,7 +484,7 @@ if __name__ == '__main__':
     elif if_input_embedding == 'no-embedding':
         pass
     else:
-        usasge()
+        usage()
 
 
     start_time = (datetime.datetime.now().time())
