@@ -16,7 +16,7 @@ UNK_CAP_START = 'UNK_CapStart'
 N1 = 50
 EPOCHS = 5
 LR = 0.0001
-REGULARIZATION_FACTOR = 1
+REGULARIZATION_FACTOR = 0.1
 BATCH_SIZE = 1000
 
 
@@ -26,6 +26,8 @@ TRAIN_CUTOFF = float("inf")
 
 uncommon_words = set()
 
+train_losses = []
+train_acc = []
 
 def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     vocab = {}
@@ -303,6 +305,9 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
     seen_instances = 0
 
     for epoch in range(EPOCHS):
+        epoch_loss = 0
+        correct =0
+        train_counter = 0
         random.shuffle(sen_arr)
         for sen_i in range(len(sen_arr)):
             if sen_i % 1000 == 0:
@@ -331,17 +336,24 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 y = int(tag_set[tag])
 
                 loss = -(dy.log(dy.pick(net_output, y)))
-                #loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
+                loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
 
                 seen_instances += 1
+                train_counter += 1
                 loss_val = loss.value()
+                tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
                 total_loss += loss_val
+                epoch_loss += loss_val
+                if tag_hat == tag:
+                    if not (IGNORE_O and tag == 'O'):
+                        correct += 1
 
                 loss.backward()
                 trainer.update()
                 iteration += 1
 
-
+        train_losses.append(epoch_loss/float(train_counter))
+        train_acc.append(correct/float(train_counter))
         print ("Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + \
             "average train loss is:", total_loss / seen_instances)
         dev_loss, dev_acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
@@ -462,7 +474,7 @@ def write2file(prediction, if_input_embedding, data_type):
 
 
 def usage():
-    print "Input form should be:\n train_data dev_data test_data data_type [subwords/nosubwords] " \
+    print "Input form should be:\n train_data dev_data test_data data_type [subwords/no-subwords] " \
           "[embedding/no-embedding] (if embedding) vocab_file wordVector_file"
     raise AssertionError()
 
@@ -497,6 +509,7 @@ if __name__ == '__main__':
 
     (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords)
     plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type)
+    plotGraphs(train_losses, train_acc, if_input_embedding, "train")
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
     write2file(prediction, if_input_embedding, data_type)
