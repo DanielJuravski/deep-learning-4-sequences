@@ -1,60 +1,45 @@
 Word is : dog
 closest words are:
-  cat
-  rabbit
-  puppy
-  frog
-  kitten
-  hat
-  hound
-  bird
+  "cat"	with dist of:0.7709259769145916
+  "rabbit"	with dist of:0.7319670153567381
+  "puppy"	with dist of:0.6965872912479809
+  "frog"	with dist of:0.6484941022772281
+  "kitten"	with dist of:0.6348920530812184
 
 ******************
 Word is : england
 closest words are:
-  ireland
-  scotland
-  australia
-  wales
-  europe
-  france
-  sweden
-  britain
+  "ireland"	with dist of:0.9009473338245269
+  "scotland"	with dist of:0.85007734042004
+  "australia"	with dist of:0.8063409338273497
+  "wales"	with dist of:0.7983477530776708
+  "europe"	with dist of:0.7752753846783793
 
 ******************
 Word is : john
 closest words are:
-  george
-  robert
-  charles
-  william
-  james
-  henry
-  richard
-  thomas
+  "george"	with dist of:0.9220484429316899
+  "robert"	with dist of:0.8988161740885585
+  "charles"	with dist of:0.8946922827779178
+  "william"	with dist of:0.8894472752280502
+  "james"	with dist of:0.8782858999808391
 
 ******************
 Word is : explode
 closest words are:
-  grenadiers
-  slashed
-  appendix
-  monnet
-  instantaneously
-  quests
-  surnames
-  tigra
+  "grenadiers"	with dist of:0.5554276681938686
+  "slashed"	with dist of:0.5508392346507232
+  "appendix"	with dist of:0.5339477979858466
+  "monnet"	with dist of:0.5242184541980067
+  "instantaneously"	with dist of:0.5182675882175857
 
 ******************
 Word is : office
 closest words are:
-  board
-  court
-  offices
-  commission
-  authority
-  service
-  house
-  staff
+  "board"	with dist of:0.668167489232501
+  "court"	with dist of:0.6197735812307626
+  "offices"	with dist of:0.6174371328485805
+  "commission"	with dist of:0.6166757055712343
+  "authority"	with dist of:0.6033201253924069
 
 ******************

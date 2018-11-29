@@ -29,7 +29,7 @@ def print_results(file, word, closest_words):
     file.write("Word is : %s\n" % word)
     file.write("closest words are:\n")
     for w in closest_words:
-        file.write("  %s\n" % w)
+        file.write("  \"%s\"\twith dist of:%s\n" % (w[0],w[1]))
     file.write("\n******************\n")
 
 
@@ -48,7 +48,9 @@ def most_similar(word, k):
             word_dist_arr.append((w, dist_from_word(word, w)))
 
     sorted_tuples = sorted(word_dist_arr, key=lambda tup: -tup[1])[:k]
-    return [tup[0] for tup in sorted_tuples]
+    #return [tup[0] for tup in sorted_tuples]
+    return sorted_tuples
+
 
 def print_k_closest_words(k, words):
     output_f = open(OUTPUT_FILE, 'w')
