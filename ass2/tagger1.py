@@ -336,7 +336,8 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 y = int(tag_set[tag])
 
                 loss = -(dy.log(dy.pick(net_output, y)))
-                loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
+                if REGULARIZATION_FACTOR > 0:
+                    loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
 
                 seen_instances += 1
                 train_counter += 1
