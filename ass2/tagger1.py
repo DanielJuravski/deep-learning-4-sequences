@@ -7,7 +7,7 @@ import datetime
 
 
 N1 = 50
-EPOCHS = 10
+EPOCHS = 5
 
 LR = 0.0002
 REGULARIZATION_FACTOR = 0
@@ -18,7 +18,6 @@ BATCH_SIZE = 1000
 IGNORE_O = True
 MIN_WORD_APPEARANCE = 5
 TRAIN_CUTOFF = float("inf")
-prefix_for_files = ""
 
 uncommon_words = set()
 
@@ -55,6 +54,8 @@ def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
                     if not vocab.has_key(word):
                         vocab[word] = size
                         size += 1
+        vocab[UUUNKKK] = size
+        size += 1
 
     if if_subwords == 'subwords':
         subwords_dict = {}
@@ -92,8 +93,6 @@ def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     vocab[UNK_ALLCAP] = size
     size += 1
     vocab[UNK_NUM] = size
-    size += 1
-    vocab[UUUNKKK] = size
     size += 1
 
     global uncommon_words
@@ -275,7 +274,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
     dev_losses = []
     dev_accies = []
     iteration = 0
-
+    middle_dev_evaluate = len(sen_arr) / 2
     # renew the computation graph
     dy.renew_cg()
 
@@ -321,6 +320,10 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 print("training sentance: %d" %sen_i)
             if sen_i > TRAIN_CUTOFF:
                 continue
+            if sen_i == middle_dev_evaluate:
+                dev_loss, dev_acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
+                dev_losses.append(dev_loss)
+                dev_accies.append(dev_acc)
             sen = sen_arr[sen_i]
             for i in range(len(sen)):
                 dy.renew_cg()
@@ -358,7 +361,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
         train_losses.append(epoch_loss/float(train_counter))
         train_acc.append(correct/float(train_counter))
         print ("Epoch: " + str(epoch+1) + "/" + str(EPOCHS) + \
-            "average train loss is:", total_loss / seen_instances)
+            " average train loss is:", total_loss / seen_instances)
         dev_loss, dev_acc = evaluate_dev(dev_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
         dev_losses.append(dev_loss)
         dev_accies.append(dev_acc)
@@ -416,7 +419,7 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
 
     total_loss /= float(counter)
     acc = correct / float(correct + wrong)
-    print "Dev accuracy is: %.2f" % (acc*100) + "%"
+    print "\tDev accuracy is: %.2f" % (acc*100) + "%"
 
     return total_loss, acc
 
@@ -461,22 +464,22 @@ def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type, if_subword
         part = str(part) + 'subwords_'
 
     # loss graph
-    file_name = prefix_for_files + str(part) + str(data_type) + "_loss.png"
+    file_name = str(part) + str(data_type) + "_loss.png"
     plt.plot(dev_losses)
     plt.ylabel('Loss')
     plt.xlabel('Iterations')
-    plt.title(str(data_type) + 'Evaluation')
+    plt.title(str(data_type))
     plt.legend()
     plt.savefig(file_name)
     plt.close()
     #plt.show()
 
     # acc graph
-    file_name = prefix_for_files + str(part) + str(data_type) + "_acc.png"
+    file_name = str(part) + str(data_type) + "_acc.png"
     plt.plot(dev_accies)
     plt.ylabel('Accuracy')
     plt.xlabel('Iterations')
-    plt.title(str(data_type) +'Evaluation')
+    plt.title(str(data_type))
     plt.legend()
     plt.savefig(file_name)
     plt.close()
@@ -490,7 +493,7 @@ def write2file(prediction, if_input_embedding, data_type, if_subwords):
         part = 'part3_'
     if if_subwords == 'subwords':
         part = str(part) + 'subwords_'
-    file_name =prefix_for_files+ str(part) + str(data_type) + "_test.pred"
+    file_name = str(part) + str(data_type) + "_test.pred"
 
     with open(file_name, 'w') as f:
         for i in range(len(prediction)):
@@ -515,10 +518,6 @@ if __name__ == '__main__':
     if if_subwords != 'subwords' and if_subwords != 'no-subwords':
         usage()
     if_input_embedding = sys.argv[6]
-
-    if len(sys.argv) > 7:
-        prefix_for_files = sys.argv[7]
-
     vocab_file = None
     wordVector_file = None
     if if_input_embedding == 'embedding':
@@ -532,7 +531,6 @@ if __name__ == '__main__':
 
     start_time = (datetime.datetime.now().time())
 
-
     vocab = getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords)
     sen_arr = load_sentences(train_data)
     tag_set = load_tag_set(train_data) # tag_set is of form: "TAG NUM"
@@ -540,8 +538,8 @@ if __name__ == '__main__':
 
     (w1, w2, b1, b2, E, m, dev_losses, dev_accies) = train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVector_file, if_subwords)
 
-    plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type, if_subwords)
-    plotGraphs(train_losses, train_acc, if_input_embedding, "train", if_subwords)
+    plotGraphs(dev_losses, dev_accies, if_input_embedding, "Dev_" + data_type, if_subwords)
+    plotGraphs(train_losses, train_acc, if_input_embedding, "Train_" + data_type, if_subwords)
 
     prediction = predict_test(test_data, (w1, w2, b1, b2, E, m), tag_set_rev, vocab)
     write2file(prediction, if_input_embedding, data_type, if_subwords)
