@@ -329,12 +329,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
                 emb_vectors = [E[j] for j in wordIndexVector]
                 con_emb_vectors = dy.concatenate(emb_vectors)
                 if if_subwords == 'subwords':
-                    preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
-                    pre_vectors = [E[j] for j in preWordIndexVector]
-                    suff_vectors = [E[j] for j in suffWordIndexVector]
-                    con_pre_vectors = dy.concatenate(pre_vectors)
-                    con_suff_vectors = dy.concatenate(suff_vectors)
-                    net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+                    net_input = add_subwords_vectors(E, con_emb_vectors, i, sen, vocab)
                 else:
                     net_input = con_emb_vectors
 
@@ -371,6 +366,16 @@ def train_model(sen_arr, vocab, tag_set, dev_data, if_input_embedding, wordVecto
     return (w1, w2, b1, b2, E, m, dev_losses, dev_accies)
 
 
+def add_subwords_vectors(E, con_emb_vectors, i, sen, vocab):
+    preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
+    pre_vectors = [E[j] for j in preWordIndexVector]
+    suff_vectors = [E[j] for j in suffWordIndexVector]
+    con_pre_vectors = dy.concatenate(pre_vectors)
+    con_suff_vectors = dy.concatenate(suff_vectors)
+    net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+    return net_input
+
+
 def evaluate_dev(dev_data, params, tag_set_rev, vocab):
     (w1, w2, b1, b2, E, m ) = params
     dev_sen_arr = load_sentences(dev_data)
@@ -390,12 +395,7 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
             emb_vectors = [E[j] for j in vecs]
             con_emb_vectors = dy.concatenate(emb_vectors)
             if if_subwords == 'subwords':
-                preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
-                pre_vectors = [E[j] for j in preWordIndexVector]
-                suff_vectors = [E[j] for j in suffWordIndexVector]
-                con_pre_vectors = dy.concatenate(pre_vectors)
-                con_suff_vectors = dy.concatenate(suff_vectors)
-                net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+                net_input = add_subwords_vectors(E, con_emb_vectors, i, sen, vocab)
             else:
                 net_input = con_emb_vectors
 
@@ -438,12 +438,7 @@ def predict_test(test_data, params, tag_set_rev, vocab):
             emb_vectors = [E[j] for j in vecs]
             con_emb_vectors = dy.concatenate(emb_vectors)
             if if_subwords == 'subwords':
-                preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
-                pre_vectors = [E[j] for j in preWordIndexVector]
-                suff_vectors = [E[j] for j in suffWordIndexVector]
-                con_pre_vectors = dy.concatenate(pre_vectors)
-                con_suff_vectors = dy.concatenate(suff_vectors)
-                net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+                net_input = add_subwords_vectors(E, con_emb_vectors, i, sen, vocab)
             else:
                 net_input = con_emb_vectors
             l1 = dy.tanh((w1 * net_input) + b1)
