@@ -5,31 +5,32 @@ import random
 import matplotlib.pyplot as plt
 import datetime
 
-UUUNKKK = 'UUUNKKK'
-
-UNK_NUM = 'UNK_num'
-
-UNK_ALLCAP = 'UNK_ALLCAP'
-
-UNK_CAP_START = 'UNK_CapStart'
 
 N1 = 50
-EPOCHS = 5
+EPOCHS = 10
 
-LR = 0.0001
+LR = 0.0002
 REGULARIZATION_FACTOR = 0
 
 BATCH_SIZE = 1000
 
 
 IGNORE_O = True
-MIN_WORD_APPEARANCE = 1
+MIN_WORD_APPEARANCE = 5
 TRAIN_CUTOFF = float("inf")
+prefix_for_files = ""
 
 uncommon_words = set()
 
 train_losses = []
 train_acc = []
+
+
+
+UUUNKKK = 'UUUNKKK'
+UNK_NUM = 'UNK_num'
+UNK_ALLCAP = 'UNK_ALLCAP'
+UNK_CAP_START = 'UNK_CapStart'
 
 def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     vocab = {}
@@ -99,8 +100,8 @@ def getDataVocab(train_data, if_input_embedding, vocab_file, if_subwords):
     if if_input_embedding == 'embedding':
         uncommon_words = set()
     else:
-        for num, w in enumerate(word_count):
-            if num <= MIN_WORD_APPEARANCE:
+        for w in word_count:
+            if word_count[w] <= MIN_WORD_APPEARANCE:
                 uncommon_words.add(w)
 
     return vocab
@@ -387,8 +388,17 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
 
             vecs = getVectorWordIndexes(i, sen, vocab)
             emb_vectors = [E[j] for j in vecs]
+            con_emb_vectors = dy.concatenate(emb_vectors)
+            if if_subwords == 'subwords':
+                preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
+                pre_vectors = [E[j] for j in preWordIndexVector]
+                suff_vectors = [E[j] for j in suffWordIndexVector]
+                con_pre_vectors = dy.concatenate(pre_vectors)
+                con_suff_vectors = dy.concatenate(suff_vectors)
+                net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+            else:
+                net_input = con_emb_vectors
 
-            net_input = dy.concatenate(emb_vectors)
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
             y = int(tag_set[tag])
@@ -426,8 +436,16 @@ def predict_test(test_data, params, tag_set_rev, vocab):
 
             vecs = getVectorWordIndexes(i, sen, vocab)
             emb_vectors = [E[j] for j in vecs]
-
-            net_input = dy.concatenate(emb_vectors)
+            con_emb_vectors = dy.concatenate(emb_vectors)
+            if if_subwords == 'subwords':
+                preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
+                pre_vectors = [E[j] for j in preWordIndexVector]
+                suff_vectors = [E[j] for j in suffWordIndexVector]
+                con_pre_vectors = dy.concatenate(pre_vectors)
+                con_suff_vectors = dy.concatenate(suff_vectors)
+                net_input = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+            else:
+                net_input = con_emb_vectors
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
 
@@ -448,22 +466,25 @@ def plotGraphs(dev_losses, dev_accies, if_input_embedding, data_type, if_subword
         part = str(part) + 'subwords_'
 
     # loss graph
-    file_name = str(part) + str(data_type) + "_loss.png"
+    file_name = prefix_for_files + str(part) + str(data_type) + "_loss.png"
     plt.plot(dev_losses)
     plt.ylabel('Loss')
     plt.xlabel('Iterations')
-    plt.title('Dev Evaluation')
+    plt.title(str(data_type) + 'Evaluation')
+    plt.legend()
     plt.savefig(file_name)
     plt.close()
     #plt.show()
 
     # acc graph
-    file_name = str(part) + str(data_type) + "_acc.png"
+    file_name = prefix_for_files + str(part) + str(data_type) + "_acc.png"
     plt.plot(dev_accies)
     plt.ylabel('Accuracy')
     plt.xlabel('Iterations')
-    plt.title('Dev Evaluation')
+    plt.title(str(data_type) +'Evaluation')
+    plt.legend()
     plt.savefig(file_name)
+    plt.close()
     #plt.show()
 
 
@@ -474,7 +495,7 @@ def write2file(prediction, if_input_embedding, data_type, if_subwords):
         part = 'part3_'
     if if_subwords == 'subwords':
         part = str(part) + 'subwords_'
-    file_name = str(part) + str(data_type) + "_test.pred"
+    file_name =prefix_for_files+ str(part) + str(data_type) + "_test.pred"
 
     with open(file_name, 'w') as f:
         for i in range(len(prediction)):
@@ -499,6 +520,10 @@ if __name__ == '__main__':
     if if_subwords != 'subwords' and if_subwords != 'no-subwords':
         usage()
     if_input_embedding = sys.argv[6]
+
+    if len(sys.argv) > 7:
+        prefix_for_files = sys.argv[7]
+
     vocab_file = None
     wordVector_file = None
     if if_input_embedding == 'embedding':
