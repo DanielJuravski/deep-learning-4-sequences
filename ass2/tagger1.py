@@ -16,7 +16,7 @@ BATCH_SIZE = 1000
 
 
 IGNORE_O = True
-MIN_WORD_APPEARANCE = 5
+MIN_WORD_APPEARANCE = 1
 TRAIN_CUTOFF = float("inf")
 
 uncommon_words = set()
@@ -24,31 +24,27 @@ uncommon_words = set()
 train_losses = []
 train_acc = []
 
-min_length_prefsuf = 1
-max_length_prefsuf = 3
-
 UUUNKKK = 'UUUNKKK'
 UNK_NUM = 'UNK_num'
 UNK_ALLCAP = 'UNK_ALLCAP'
 UNK_CAP_START = 'UNK_CapStart'
 
 
-def add_pref_suf_to_vocab(vocab, size, word_symbol, min_length_prefsuf, max_length_prefsuf):
-    for i in range(min_length_prefsuf, max_length_prefsuf+1):
-        symbol = get_pref_for_symbol(i, word_symbol)
-        vocab[symbol] = size
-        size+=1
-        symbol = get_suff_for_symbol(i, word_symbol)
-        vocab[symbol] = size
-        size+=1
+def add_pref_suf_to_vocab(vocab, size, word_symbol):
+    symbol = get_pref_for_symbol(word_symbol)
+    vocab[symbol] = size
+    size+=1
+    symbol = get_suff_for_symbol(word_symbol)
+    vocab[symbol] = size
+    size+=1
     return vocab, size
 
 
-def get_pref_for_symbol(i, word_symbol):
-    return word_symbol + "pref" + str(i)
+def get_pref_for_symbol( word_symbol):
+    return word_symbol + "pref"
 
-def get_suff_for_symbol(i, word_symbol):
-    return word_symbol + "suff" + str(i)
+def get_suff_for_symbol( word_symbol):
+    return word_symbol + "suff"
 
 def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabled):
     vocab = {}
@@ -101,16 +97,16 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
 
     vocab['/S/S'] = size
     size += 1
-    vocab, size = add_pref_suf_to_vocab(vocab, size, '/S/S', min_length_prefsuf, max_length_prefsuf)
+    vocab, size = add_pref_suf_to_vocab(vocab, size, '/S/S')
     vocab['/S'] = size
     size += 1
-    vocab, size = add_pref_suf_to_vocab(vocab, size, '/S', min_length_prefsuf, max_length_prefsuf)
+    vocab, size = add_pref_suf_to_vocab(vocab, size, '/S')
     vocab['/E/E'] = size
     size += 1
-    vocab, size = add_pref_suf_to_vocab(vocab, size, '/E/E', min_length_prefsuf, max_length_prefsuf)
+    vocab, size = add_pref_suf_to_vocab(vocab, size, '/E/E')
     vocab['/E'] = size
     size += 1
-    vocab, size = add_pref_suf_to_vocab(vocab, size, '/E', min_length_prefsuf, max_length_prefsuf)
+    vocab, size = add_pref_suf_to_vocab(vocab, size, '/E')
     vocab[UNK_CAP_START] = size
     size += 1
     vocab[UNK_ALLCAP] = size
@@ -262,28 +258,28 @@ def getVectorPreSuffWordIndexes(i, sen, vocab, length=3):
     sen_len = len(sen)
 
     if i < 2:
-        wpp_pre = vocab[get_pref_for_symbol(length, '/S/S')]
-        wpp_suff = vocab[get_suff_for_symbol(length, '/S/S')]
+        wpp_pre = vocab[get_pref_for_symbol('/S/S')]
+        wpp_suff = vocab[get_suff_for_symbol('/S/S')]
     else:
         wpp_pre, wpp_suff = getPreSuffWordIndex(sen, i - 2, vocab, length)
 
     if i < 1:
-        wp_pre = vocab[get_pref_for_symbol(length, '/S')]
-        wp_suff = vocab[get_suff_for_symbol(length, '/S')]
+        wp_pre = vocab[get_pref_for_symbol('/S')]
+        wp_suff = vocab[get_suff_for_symbol('/S')]
     else:
         wp_pre, wp_suff = getPreSuffWordIndex(sen, i - 1, vocab, length)
 
     wi_pre, wi_suff = getPreSuffWordIndex(sen, i, vocab, length)
 
     if i > sen_len - 2:
-        wn_pre = vocab[get_pref_for_symbol(length, '/E')]
-        wn_suff = vocab[get_suff_for_symbol(length, '/E')]
+        wn_pre = vocab[get_pref_for_symbol('/E')]
+        wn_suff = vocab[get_suff_for_symbol('/E')]
     else:
         wn_pre, wn_suff = getPreSuffWordIndex(sen, i + 1, vocab, length)
 
     if i > sen_len - 3:
-        wnn_pre = vocab[get_pref_for_symbol(length, '/E/E')]
-        wnn_suff = vocab[get_suff_for_symbol(length, '/E/E')]
+        wnn_pre = vocab[get_pref_for_symbol('/E/E')]
+        wnn_suff = vocab[get_suff_for_symbol('/E/E')]
     else:
         wnn_pre, wnn_suff = getPreSuffWordIndex(sen, i + 2, vocab)
 
@@ -393,11 +389,10 @@ def train_model(sen_arr, vocab, tag_set, dev_data, input_embedding_enabled, word
 
 
 def add_subwords_vectors(dy, E, con_emb_vectors, i, sen, vocab):
-    for length in range(min_length_prefsuf, max_length_prefsuf+1):
-        preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
-        con_pre_vectors = get_concatenated_E_vectors(E, dy, preWordIndexVector)
-        con_suff_vectors = get_concatenated_E_vectors(E, dy, suffWordIndexVector)
-        con_emb_vectors = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
+    preWordIndexVector, suffWordIndexVector = getVectorPreSuffWordIndexes(i, sen, vocab)
+    con_pre_vectors = get_concatenated_E_vectors(E, dy, preWordIndexVector)
+    con_suff_vectors = get_concatenated_E_vectors(E, dy, suffWordIndexVector)
+    con_emb_vectors = dy.esum([con_emb_vectors, con_pre_vectors, con_suff_vectors])
 
     return con_emb_vectors
 
