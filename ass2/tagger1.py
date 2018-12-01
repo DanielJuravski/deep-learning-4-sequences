@@ -486,9 +486,9 @@ def predict_test(test_data, params, tag_set_rev, vocab):
 
 def plotGraphs(dev_losses, dev_accies, input_embedding_enabled, data_type, subwords_enabled):
     if input_embedding_enabled:
-        part = 'part1_'
+        part = 'part2_'
     else:
-        part = 'part3_'
+        part = 'part1_'
     if subwords_enabled:
         part = str(part) + 'subwords_'
 
