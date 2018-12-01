@@ -13,9 +13,9 @@ Learning Rate =
 Epochs =
 
 Considerations:
-- There were words that appear in the training file but not the embeddings file, we figured it out on the same way like in part 1.
-We used the same 'signatures' that we created and add them to the embedding matrix. Every train (and dev) word that wasn't find
-in the embedding matrix, was represented with those signatures.
-- The embedding vocabulary represented all with lower-case. If after we parsed each word (trying to fit it to one of our signatures),
-and still there was not a suitable signature to represent it, we have just lower the word trying to search it in the vocab.
+- There were words that appear in the training file but not the embeddings file, we treated them in a similar way like in part 1.
+by adding four different vectors to unknown words and mapping to the correct unknown vector by the word's features
+
+- The embedding vocabulary represented all with lower-case. So appropriately we searched for the lower cased representation
+of the word, if it was not found than we mapped it to the correct unknown word vector
 - Did accuracy improve over the tagger without the pre-trained embeddings? by how much?
