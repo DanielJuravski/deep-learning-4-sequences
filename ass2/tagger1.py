@@ -486,7 +486,7 @@ def predict_test(test_data, params, tag_set_rev, vocab):
 
 def plotGraphs(dev_losses, dev_accies, input_embedding_enabled, data_type, subwords_enabled):
     if input_embedding_enabled:
-        part = 'part2_'
+        part = 'part3_'
     else:
         part = 'part1_'
     if subwords_enabled:
@@ -517,9 +517,9 @@ def plotGraphs(dev_losses, dev_accies, input_embedding_enabled, data_type, subwo
 
 def write2file(prediction, input_embedding_enabled, data_type, subwords_enabled):
     if input_embedding_enabled:
-        part = 'part1_'
-    else:
         part = 'part3_'
+    else:
+        part = 'part1_'
     if subwords_enabled:
         part = str(part) + 'subwords_'
     file_name = str(part) + str(data_type) + "_test.pred"
