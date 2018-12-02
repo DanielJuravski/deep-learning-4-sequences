@@ -13,20 +13,59 @@ ${wordVectors_file} = path to the word vectors file (if using embedding)
 
 
 
+==============
 Running Part1:
---------------
+==============
         $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} no-subwords no-embedding
-        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos no-subwords no-embedding
+	
+	-----------------
+	Running POS data:
+	-----------------
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test POS no-subwords no-embedding
+
+	-----------------
+	Running NER data:
+	-----------------
+	For example: $python tagger1.py data/ner/train data/ner/dev data/ner/test NER no-subwords no-embedding
 
 
+==============
 Running Part3:
---------------
+==============
         $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} no-subwords embedding ${vocab_file} ${wordVectors_file}
-        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos no-subwords embedding data/vocab.txt data/wordVectors.txt
+
+	-----------------
+	Running POS data:
+	-----------------
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test POS no-subwords embedding data/vocab.txt data/wordVectors.txt
+
+	-----------------
+	Running NER data:
+	-----------------
+	For example: $python tagger1.py data/ner/train data/ner/dev data/ner/test NER no-subwords embedding data/vocab.txt data/wordVectors.txt
 
 
+==============
 Running Part4:
---------------
+==============
         $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} subwords [embedding/no-embedding] ${vocab_file} ${wordVectors_file}
-        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos subwords no-embedding
-        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test pos subwords embedding data/vocab.txt data/wordVectors.txt
+
+	-------------------------------------------------------------------
+	Running with subwords without pre-trained embeddings over POS data:
+	-------------------------------------------------------------------
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test POS subwords no-embedding
+
+	----------------------------------------------------------------
+	Running with subwords with pre-trained embeddings over POS data:
+	----------------------------------------------------------------
+        For example: $python tagger1.py data/pos/train data/pos/dev data/pos/test POS subwords embedding data/vocab.txt data/wordVectors.txt
+
+	-------------------------------------------------------------------
+	Running with subwords without pre-trained embeddings over NER data:
+	-------------------------------------------------------------------
+	For example: $python tagger1.py data/ner/train data/ner/dev data/ner/test NER subwords no-embedding
+
+	----------------------------------------------------------------
+	Running with subwords with pre-trained embeddings over NER data:
+	----------------------------------------------------------------
+        For example: $python tagger1.py data/ner/train data/ner/dev data/ner/test NER subwords embedding data/vocab.txt data/wordVectors.txt

@@ -8,15 +8,10 @@ import datetime
 
 N1 = 50
 EPOCHS = 5
-
-LR = 0.0002
-REGULARIZATION_FACTOR = 0
-
-BATCH_SIZE = 1000
-
+LR = 0.0002 #0.0002
 
 IGNORE_O = True
-MIN_WORD_APPEARANCE = 1
+MIN_WORD_APPEARANCE = 2
 TRAIN_CUTOFF = float("inf")
 
 uncommon_words = set()
@@ -358,14 +353,17 @@ def train_model(sen_arr, vocab, tag_set, dev_data, input_embedding_enabled, word
                 l1 = dy.tanh((w1*net_input)+b1)
                 net_output = dy.softmax((w2*l1)+b2)
                 y = int(tag_set[tag])
-
-                loss = -(dy.log(dy.pick(net_output, y)))
-                if REGULARIZATION_FACTOR > 0:
-                    loss = loss + (dy.l2_norm(w1) * REGULARIZATION_FACTOR)
+                if y <= len(net_output.value())-1:
+                    loss = -(dy.log(dy.pick(net_output, y)))
+                    loss_val = loss.value()
+                    loss.backward()
+                    trainer.update()
+                else:
+                    loss_val = 999 # just high loss value
 
                 seen_instances += 1
                 train_counter += 1
-                loss_val = loss.value()
+
                 tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
                 total_loss += loss_val
                 epoch_loss += loss_val
@@ -373,8 +371,7 @@ def train_model(sen_arr, vocab, tag_set, dev_data, input_embedding_enabled, word
                     if not (IGNORE_O and tag == 'O'):
                         correct += 1
 
-                loss.backward()
-                trainer.update()
+
                 iteration += 1
 
         train_losses.append(epoch_loss/float(train_counter))
@@ -428,12 +425,15 @@ def evaluate_dev(dev_data, params, tag_set_rev, vocab):
 
             l1 = dy.tanh((w1 * net_input) + b1)
             net_output = dy.softmax((w2 * l1) + b2)
-            y = int(tag_set[tag])
+            if tag in tag_set:
+                y = int(tag_set[tag])
+                loss = -(dy.log(dy.pick(net_output, y)))
+                loss_val = loss.value()
+            else:
+                loss_val = 999 # just high loss value
 
             tag_hat = tag_set_rev[np.argmax(net_output.npvalue())]
-            loss = -(dy.log(dy.pick(net_output, y)))
-            total_loss += loss.value()
-
+            total_loss += loss_val
             counter +=1
             if tag_hat == tag:
                 if not (IGNORE_O and tag == 'O'):
