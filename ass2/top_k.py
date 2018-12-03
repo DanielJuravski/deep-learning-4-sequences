@@ -60,14 +60,15 @@ def print_k_closest_words(k, words):
     output_f.close()
 
 if __name__ == '__main__':
-    vocab_file = "data/vocab.txt"
-    vectors_file ="data/wordVectors.txt"
-    k = 5
-
+    
     if len(sys.argv) > 3:
         vocab_file = sys.argv[1]
         vectors_file = sys.argv[2]
         k = int(sys.argv[3])
+    else:
+	vocab_file = "data/vocab.txt"
+    	vectors_file ="data/wordVectors.txt"
+    	k = 5
 
     vocab_dict = load_wordVectorsVocab(vocab_file, vectors_file)
     words_to_check = ["dog", "england", "john", "explode", "office"]

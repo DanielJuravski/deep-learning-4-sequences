@@ -1,4 +1,6 @@
+~~~~~~~~~~~~~~~~~~~~~
 How to run my tagger:
+~~~~~~~~~~~~~~~~~~~~~
 
 $python tagger1.py ${train_data} ${dev_data} ${test_data} ${data_type} ${subword_flag} ${embedding_flag} ${vocab_file} ${wordVectors_file}
 
@@ -69,3 +71,20 @@ Running Part4:
 	Running with subwords with pre-trained embeddings over NER data:
 	----------------------------------------------------------------
         For example: $python tagger1.py data/ner/train data/ner/dev data/ner/test NER subwords embedding data/vocab.txt data/wordVectors.txt
+
+
+
+~~~~~~~~~~~~~~~~~~~~
+How to run my top_k:
+~~~~~~~~~~~~~~~~~~~~
+	$python top_k.py ${vocab_file} ${wordVectors_file} ${k}
+
+	${vocab_file}       = path to the vocab file (if using embedding)
+	${wordVectors_file} = path to the word vectors file (if using embedding)
+	${k} 		    = k is the number of most similar words
+
+	--------
+	Running:
+	--------
+	For example: $python top_k.py data/vocab.txt data/wordVectors.txt 5
+
