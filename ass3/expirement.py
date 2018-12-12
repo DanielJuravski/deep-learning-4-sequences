@@ -1,5 +1,7 @@
 import random
 import sys
+
+import datetime
 import dynet as dy
 import numpy as np
 
@@ -7,33 +9,35 @@ EPOCHS = 10
 
 MLP_OUTPUT_SIZE = 2
 
-N1 = 22
-
 LAYERS = 1
-INPUT_DIM = 20
+INPUT_DIM = 16
 HIDDEN_DIM = 20
-LSTM_OUTPUT_SIZE = 18
-
+LSTM_OUTPUT_SIZE = 10
+N1 = 8
 
 int2char = None
 char2int = None
 def get_train_and_validation(train_pos_file, train_neg_file):
 
-    all_x =[]
+    all_x, all_y = get_xy_from_files(train_neg_file, train_pos_file)
+
+    all_x, all_y = shuffle(all_x, all_y)
+    n = int(len(all_y) * 0.8)
+    return all_x[:n], all_y[:n], all_x[n:], all_y[n:]
+
+
+def get_xy_from_files(train_neg_file, train_pos_file):
+    all_x = []
     all_y = []
     with open(train_pos_file) as f:
         for line in f.readlines():
             all_x.append(line.strip())
             all_y.append(1)
-
     with open(train_neg_file) as f:
         for line in f.readlines():
             all_x.append(line.strip())
             all_y.append(0)
-
-    all_x, all_y = shuffle(all_x, all_y)
-    n = int(len(all_y) * 0.8)
-    return all_x[:n], all_y[:n], all_x[n:], all_y[n:]
+    return all_x, all_y
 
 
 def shuffle(x, y):
@@ -125,7 +129,7 @@ def train(model, tagged_samples, trainer):
     print("percent = %f" % precent)
 
 
-def validate(model, dev_samples):
+def validate(model, dev_samples, epoch):
     dev_x, dev_y = dev_samples
     lstm, params, pc = model
 
@@ -143,7 +147,25 @@ def validate(model, dev_samples):
             correct += 1
 
     precent = correct/float(len(dev_y))
+    print("validation epoch %d at %s" % (epoch, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     print("validation percent = %f" % precent)
+
+
+def test(model, test_set):
+    test_x, test_y = test_set
+    lstm, params, pc = model
+
+    correct = 0
+    for i in range(len(dev_y)):
+        line = test_x[i]
+        y = test_y[i]
+        loss, yhat = predict(lstm, params, line, y)
+        prediction = np.argmax(yhat.npvalue())
+        if prediction == y:
+            correct += 1
+
+    precent = correct/float(len(dev_y))
+    print("test percent = %f" % precent)
 
 
 if __name__ == '__main__':
@@ -161,10 +183,14 @@ if __name__ == '__main__':
     train_x, train_y, dev_x, dev_y = get_train_and_validation(train_pos_file, train_neg_file)
     model, trainer = init_model()
 
+    print("started at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for i in range(EPOCHS):
         print ("epoch no: %d" % i)
         train_x, train_y = shuffle(train_x, train_y)
         trained_model = train(model, (train_x, train_y), trainer)
 
         dev_x, dev_y = shuffle(dev_x, dev_y)
-        validate(model, (dev_x, dev_y))
+        validate(model, (dev_x, dev_y), (i+1))
+
+    test_x, test_y = get_xy_from_files(test_neg_file, test_pos_file)
+    test(model, (test_x, test_y))

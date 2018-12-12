@@ -1,0 +1,26 @@
+
+* how large were the training and test sets?
+The training and test sets were both of size 1000 (500 positive 500 negative)
+The training set was divided to 80% train 20 percent validation.
+
+*did your network succeed in distinguishing the two languages?
+yes
+
+*how long did it take (both wall-clock time (i.e., number of seconds), and number of iterations)?
+It runs for 10 epoch, 29 seconds.
+validation was 100% from epoch 5 (15 seconds)
+each epoch runs over the 800 training samples and 200 validation samples
+
+
+*did it succeed only on the train and not on the test?
+succeeds on both
+
+*what you did in order to make it work?
+These are the parameters we used
+LAYERS = 1 # layers of the lstm
+INPUT_DIM = 16 # size of the embedding vector
+HIDDEN_DIM = 20 # size of the state vector
+LSTM_OUTPUT_SIZE = 10 # size of y, the input to the MLP
+N1 = 8 # size of hidden layer inside the MLP
+
+we used RMSPropTrainer as the optimizer, which converged fastest
