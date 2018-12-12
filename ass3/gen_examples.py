@@ -7,7 +7,7 @@ def makeExamples(alphas, min_digit_seq, max_digit_seq, num_of_examples):
     for example_i in range(num_of_examples):
         example = "".join([random.choice("123456789") for x in range(random.randint(min_digit_seq, max_digit_seq))])
         for alpha in alphas:
-            example += alpha
+            example += "".join([random.choice(alpha) for x in range(random.randint(min_digit_seq, max_digit_seq))])
             example += "".join([random.choice("123456789") for x in range(random.randint(min_digit_seq, max_digit_seq))])
         examples.append(example)
 
