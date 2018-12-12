@@ -1,5 +1,5 @@
 import sys
-
+from random import shuffle
 import datetime
 import dynet_config
 dynet_config.set(autobatch=1)
@@ -37,7 +37,8 @@ def load_sentences(data):
         else:
             sen_arr.append(sen)
             sen = []
-    sen_arr.append(sen)
+    if len(sen) > 0:
+        sen_arr.append(sen)
     f.close()
 
     return sen_arr
@@ -188,6 +189,7 @@ def train(sen_arr, repr_type, vocab, tag_set):
     b = params["bias"]
 
     for epoch in range(EPOCHS):
+        shuffle(sen_arr)
         print("Epoch " + str(epoch+1) + " time started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         good = bad = 0.0
         for i in range(len(sen_arr)):
@@ -228,6 +230,7 @@ def train(sen_arr, repr_type, vocab, tag_set):
                 acc = (good /(good+bad)) * 100
                 print("epoch %d: iteration- %d loss=%.4f acc=%%%.2f" % (epoch+1, i, loss_val, acc))
 
+    return (lstms, params, model, trainer)
 
 def get_tag_i(line, i):
     return int(tag_set[line[i].split()[1]])
@@ -271,7 +274,7 @@ if __name__ == '__main__':
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
-    model = train(sen_arr, repr_type, vocab, tag_set)
+    model_params = train(sen_arr, repr_type, vocab, tag_set)
 
     print("Ended at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
