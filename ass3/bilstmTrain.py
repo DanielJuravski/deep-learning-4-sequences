@@ -22,12 +22,14 @@ UNK_NUM = 'UNK_num'
 UNK_ALLCAP = 'UNK_ALLCAP'
 UNK_CAP_START = 'UNK_CapStart'
 
+
 def load_sentences(data):
     """
     Converting file to array of sentences
     :param data:
     :return: sen_arr
     """
+
     f = open(data)
     sen_arr = []
     sen = []
@@ -109,6 +111,7 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
 
     return vocab
 
+
 def load_tag_set(sen_arr):
     """
     Getting the possible labels of the tagset of this train data/
@@ -142,9 +145,6 @@ def is_number(s):
         return True
     except ValueError:
         return False
-
-
-
 
 
 def init_model_a(vocab, tag_set):
@@ -182,7 +182,9 @@ def get_webms(repr_type, params, line, vocab):
         return embs
 
 
-def train(sen_arr, repr_type, vocab, tag_set):
+def train(sen_arr, repr_type, vocab, tag_set, dev_file):
+    if dev_file is not None:
+        dev_data = load_sentences(dev_file)
     lstms, params, model, trainer = get_model(repr_type, vocab, tag_set)
     f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
     w = params["w"]
@@ -226,11 +228,16 @@ def train(sen_arr, repr_type, vocab, tag_set):
             loss.backward()
             trainer.update()
 
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 acc = (good /(good+bad)) * 100
-                print("epoch %d: iteration- %d loss=%.4f acc=%%%.2f" % (epoch+1, i, loss_val, acc))
+                print("Epoch %d: Train iteration %d: loss=%.4f acc=%%%.2f" % (epoch+1, i, loss_val, acc))
+
+            if (i % 500 == 0) and (dev_file is not None):
+                dev_loss, dev_acc = evaluate_dev(dev_data, (lstms, params, model, trainer), vocab)
+                print("\t\tEpoch %d: Dev iteration %d: loss=%.4f acc=%%%.2f" % (epoch + 1, i, dev_loss, dev_acc))
 
     return (lstms, params, model, trainer)
+
 
 def get_tag_i(line, i):
     return int(tag_set[line[i].split()[1]])
@@ -258,14 +265,66 @@ def getWordIndex(word_and_tag, vocab):
 
     return i
 
+
+def evaluate_dev(dev_data, model_params, vocab):
+    (lstms, params, model, trainer) = model_params
+    f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
+    w = params["w"]
+    b = params["bias"]
+    good = bad = 0.0
+    counter = 0
+    total_loss = 0
+
+    for i in range(len(dev_data)):
+        sen = dev_data[i]
+        dy.renew_cg()
+        f1_lstm_init = f1_lstm.initial_state()
+        b1_lstm_init = b1_lstm.initial_state()
+        f2_lstm_init = f2_lstm.initial_state()
+        b2_lstm_init = b2_lstm.initial_state()
+        webms = get_webms(repr_type, params, sen, vocab)
+        fw1_exps = f1_lstm_init.transduce(webms)
+        bw1_exps = b1_lstm_init.transduce(reversed(webms))
+        bi1 = [dy.concatenate([f, b_exp]) for f, b_exp in zip(fw1_exps, reversed(bw1_exps))]
+
+        fw2_exps = f2_lstm_init.transduce(bi1)
+        bw2_exps = b2_lstm_init.transduce(reversed(bi1))
+        bi2 = [dy.concatenate([f, b_exp]) for f, b_exp in zip(fw2_exps, reversed(bw2_exps))]
+        probs_sequence = [dy.softmax((w * out) + b) for out in bi2]
+        yhat_sequence = [np.argmax(probs.value()) for probs in probs_sequence]
+        golds_sequence = [get_tag_i(sen, i_gold) for i_gold in range(len(sen))]
+        for yhat, gold in zip(yhat_sequence, golds_sequence):
+            counter += 1
+            if yhat == gold:
+                good += 1
+            else:
+                bad += 1
+
+        loss_sequence = []
+        for i_prob, probs in enumerate(probs_sequence):
+            tag = get_tag_i(sen, i_prob)
+            loss_sequence.append(-(dy.log(dy.pick(probs, tag))))
+        loss = dy.esum(loss_sequence)
+        total_loss += loss.value()
+    total_loss /= counter
+    acc = (good / (good + bad)) * 100
+
+    return total_loss, acc
+
+
 if __name__ == '__main__':
     repr_type = sys.argv[1]
     train_file = sys.argv[2]
     model_file = sys.argv[3]
 
+    dev_file = None
+    if "--dev-file" in sys.argv:
+        dev_file_option_i = sys.argv.index("--dev-file")
+        dev_file = sys.argv[dev_file_option_i+1]
+
     if repr_type == 'c':
-        vocab_file = sys.argv[5]
-        embedding_file = sys.argv[6]
+        vocab_file = sys.argv[4]
+        embedding_file = sys.argv[5]
     else:
         vocab_file = None
 
@@ -274,7 +333,7 @@ if __name__ == '__main__':
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
-    model_params = train(sen_arr, repr_type, vocab, tag_set)
+    model_params = train(sen_arr, repr_type, vocab, tag_set, dev_file)
 
     print("Ended at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
