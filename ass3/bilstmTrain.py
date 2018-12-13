@@ -5,6 +5,7 @@ import dynet_config
 dynet_config.set(autobatch=1)
 import dynet as dy
 import numpy as np
+import matplotlib.pyplot as plt
 
 EPOCHS = 5
 
@@ -266,6 +267,8 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
     w = params["w"]
     b = params["bias"]
 
+    dev_acc_arr = []
+
     for epoch in range(EPOCHS):
         shuffle(sen_arr)
         print("Epoch " + str(epoch+1) + " time started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -313,9 +316,10 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
 
             if (i % 500 == 0) and (dev_file is not None):
                 dev_loss, dev_acc = evaluate_dev(dev_data, (lstms, params, model, trainer), vocab)
-                print("\t\tEpoch %d: Dev iteration %d: loss=%.4f acc=%%%.2f" % (epoch + 1, i, dev_loss, dev_acc))
+                print("=======Dev iteration: loss=%.4f acc=%%%.2f=======" % (dev_loss, dev_acc))
+                dev_acc_arr.append(dev_acc)
 
-    return (lstms, params, model, trainer)
+    return (lstms, params, model, trainer), dev_acc_arr
 
 
 def get_tag_i(line, i):
@@ -391,6 +395,22 @@ def evaluate_dev(dev_data, model_params, vocab):
     return total_loss, acc
 
 
+def analyse_statistics(dev_acc_arr, repr_type):
+    np_file_name = 'stat/' + repr_type + '.txt'
+    with open(np_file_name, 'w') as f:
+        np.savetxt(f, dev_acc_arr)
+
+    plt_file_name = 'stat/' + repr_type + '.png'
+    plt.plot(dev_acc_arr)
+    plt.ylabel('Accuracy')
+    plt.xlabel('Iterations')
+    #plt.xticks(np.arange(0, step=5))
+    plt.title(repr_type)
+    plt.legend()
+    plt.savefig(plt_file_name)
+    plt.close()
+
+
 if __name__ == '__main__':
     repr_type = sys.argv[1]
     train_file = sys.argv[2]
@@ -414,7 +434,11 @@ if __name__ == '__main__':
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
-    model_params = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file)
+    model_params, dev_acc_arr = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file)
+
+    if ("--analyse" in sys.argv) and (dev_file is not None):
+        analyse_statistics(dev_acc_arr, repr_type)
+
 
     print("Ended at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
