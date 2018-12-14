@@ -105,11 +105,11 @@ def predict(lstm, params, line, y):
     return loss, yhat
 
 
-def train(model, tagged_samples, trainer):
+def train(model, tagged_samples, trainer, epoch_i):
     train_x, train_y = tagged_samples
     lstm, params, pc = model
 
-    correct = 0
+    correct = wrong = 0.0
     for i in range(len(train_y)):
         line = train_x[i]
         y = train_y[i]
@@ -117,45 +117,46 @@ def train(model, tagged_samples, trainer):
         loss_value = loss.value()
         loss.backward()
         trainer.update()
-        if i % 100 == 0:
-            print("loss value= %.10f" % loss_value )
-          #  print("prediction= " + repr(yhat.npvalue()))
 
         prediction = np.argmax(yhat.npvalue())
         if prediction == train_y[i]:
             correct += 1
+        else:
+            wrong += 1
 
-    precent = correct/float(len(train_y))
-    print("percent = %f" % precent)
+        if i > 0 and i % 100 == 0:
+            precent = correct / (correct+wrong) * 100
+            print("Epoch:%d train iteration:%d loss=%.4f acc=%.2f%%" % (epoch_i, i, loss_value, precent))
 
 
 def validate(model, dev_samples, epoch):
     dev_x, dev_y = dev_samples
     lstm, params, pc = model
 
-    correct = 0
+    correct = wrong = total_loss_val = 0.0
+
     for i in range(len(dev_y)):
         line = dev_x[i]
         y = dev_y[i]
         loss, yhat = predict(lstm, params, line, y)
         loss_value = loss.value()
-        if i % 100 == 0:
-            print("validation loss value= %.10f" % loss_value )
+        total_loss_val += loss_value
 
         prediction = np.argmax(yhat.npvalue())
         if prediction == y:
             correct += 1
+        else:
+            wrong += 1
 
-    precent = correct/float(len(dev_y))
-    print("validation epoch %d at %s" % (epoch, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-    print("validation percent = %f" % precent)
+    precent = correct/(correct+wrong) * 100
+    print("===== Validation: loss=%.4f acc=%.2f%% =====" % (total_loss_val, precent))
 
 
 def test(model, test_set):
     test_x, test_y = test_set
     lstm, params, pc = model
 
-    correct = 0
+    correct = wrong = 0.0
     for i in range(len(dev_y)):
         line = test_x[i]
         y = test_y[i]
@@ -163,9 +164,11 @@ def test(model, test_set):
         prediction = np.argmax(yhat.npvalue())
         if prediction == y:
             correct += 1
+        else:
+            wrong += 1
 
-    precent = correct/float(len(dev_y))
-    print("test percent = %f" % precent)
+    precent = correct / (correct + wrong) * 100
+    print("\nTest percent = %2f%%" % precent)
 
 
 if __name__ == '__main__':
@@ -185,9 +188,8 @@ if __name__ == '__main__':
 
     print("started at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for i in range(EPOCHS):
-        print ("epoch no: %d" % i)
         train_x, train_y = shuffle(train_x, train_y)
-        trained_model = train(model, (train_x, train_y), trainer)
+        trained_model = train(model, (train_x, train_y), trainer, i)
 
         dev_x, dev_y = shuffle(dev_x, dev_y)
         validate(model, (dev_x, dev_y), (i+1))
