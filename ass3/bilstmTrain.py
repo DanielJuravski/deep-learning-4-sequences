@@ -12,6 +12,7 @@ EPOCHS = 5
 LSTM_LAYERS = 1
 LSTM_INPUT_DIM = 50
 LSTM_STATE_DIM = 50
+#C_LSTM_INPUT = 20
 
 
 MIN_WORD_APPEARANCE = 2
@@ -46,26 +47,45 @@ def load_sentences(data):
     return sen_arr
 
 
-def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabled):
+def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabled, char_embedding):
     vocab = {}
-    word_count = {}
+    key_count = {}  # == word_count  == char_count
     size = 0
+
+    # already trained embedding
     if input_embedding_enabled:
         with open(vocab_file) as f:
             for word in f:
                 word = word.rstrip()
                 vocab[word] = size
                 size += 1
+    elif char_embedding:
+        with open(train_data) as f:
+            for line in f:
+                if line != '\n':
+                    word, tag = line.split()
+                    # l_word = word.lower()
+                    for char in word:
+                        if char in key_count:
+                            key_count[char] += 1
+                        else:
+                            key_count[char] = 1
+                        if not vocab.has_key(char):
+                            vocab[char] = size
+                            size += 1
+        vocab[UUUNKKK] = size
+        size += 1
+    # my embedding
     else:
         with open(train_data) as f:
             for line in f:
                 if line != '\n':
                     word, tag = line.split()
                     l_word = word.lower()
-                    if l_word in word_count:
-                        word_count[l_word] += 1
+                    if l_word in key_count:
+                        key_count[l_word] += 1
                     else:
-                        word_count[l_word] = 1
+                        key_count[l_word] = 1
                     if not vocab.has_key(word):
                         vocab[word] = size
                         size += 1
@@ -95,19 +115,20 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
         vocab[SUFF_UUUNKKK] = size
         size += 1
 
-    vocab[UNK_CAP_START] = size
-    size += 1
-    vocab[UNK_ALLCAP] = size
-    size += 1
-    vocab[UNK_NUM] = size
-    size += 1
+    if not char_embedding: # if not char embedding, if any word embedding
+        vocab[UNK_CAP_START] = size
+        size += 1
+        vocab[UNK_ALLCAP] = size
+        size += 1
+        vocab[UNK_NUM] = size
+        size += 1
 
     global uncommon_words
     if input_embedding_enabled:
         uncommon_words = set()
     else:
-        for w in word_count:
-            if word_count[w] <= MIN_WORD_APPEARANCE:
+        for w in key_count:
+            if key_count[w] <= MIN_WORD_APPEARANCE:
                 uncommon_words.add(w)
 
     return vocab
@@ -170,6 +191,30 @@ def init_model_a(vocab, tag_set):
     return (lstms, params, model, trainer)
 
 
+def init_model_b(vocab, tag_set):
+    TAGSET_SIZE = len(tag_set)
+    VOCAB_SIZE = len(vocab)
+
+    model = dy.ParameterCollection()
+
+    c_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_INPUT_DIM, model)
+    f1_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_STATE_DIM, model)
+    b1_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_STATE_DIM, model)
+    f2_lstm = dy.LSTMBuilder(LSTM_LAYERS, 2 * LSTM_STATE_DIM, LSTM_STATE_DIM, model)
+    b2_lstm = dy.LSTMBuilder(LSTM_LAYERS, 2 * LSTM_STATE_DIM, LSTM_STATE_DIM, model)
+    lstms = (c_lstm, f1_lstm, b1_lstm, f2_lstm, b2_lstm)
+
+    params = {}
+    params["lookup"] = model.add_lookup_parameters((VOCAB_SIZE, LSTM_INPUT_DIM), init='uniform',
+                                                   scale=(np.sqrt(6) / np.sqrt(LSTM_INPUT_DIM)))
+
+    params["w"] = model.add_parameters((TAGSET_SIZE, 2 * LSTM_STATE_DIM))
+    params["bias"] = model.add_parameters((TAGSET_SIZE))
+
+    trainer = dy.AdamTrainer(model)
+    return (lstms, params, model, trainer)
+
+
 def init_model_c(vocab, tag_set, embedding_file):
     model = dy.ParameterCollection()
     params = {}
@@ -207,11 +252,15 @@ def init_model_c(vocab, tag_set, embedding_file):
 def get_model(repr_type, vocab, tag_set, embedding_file):
     if repr_type == 'a':
         return init_model_a(vocab, tag_set)
+
+    elif repr_type == 'b':
+        return init_model_b(vocab, tag_set)
+
     elif repr_type == 'c':
         return init_model_c(vocab, tag_set, embedding_file)
 
 
-def get_webms(repr_type, params, line, vocab):
+def get_webms(repr_type, params, line, vocab, char_lstm):
     E = params["lookup"]
 
     if repr_type == 'a':
@@ -225,6 +274,20 @@ def get_webms(repr_type, params, line, vocab):
         pre_embs = [E[j] for j in preWordIndexVector]
         suff_embs = [E[j] for j in suffWordIndexVector]
         embs = [dy.esum([just_words_embs[i], pre_embs[i], suff_embs[i]]) for i,some_val in enumerate(just_words_embs)]
+
+    elif repr_type == 'b':
+        sen_embs = []
+        for word_and_tag in line:
+            s = char_lstm.initial_state()
+            word = word_and_tag.split()[0]
+            c_word = [(c) for c in word]
+            c_indexes = [getCharIndex(x, vocab) for x in c_word]
+            c_embs = [E[j] for j in c_indexes]
+            for c_e in c_embs:
+                s = s.add_input(c_e)
+
+            sen_embs.append(s.output())
+        embs = sen_embs
 
     return embs
 
@@ -263,7 +326,11 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
     if dev_file is not None:
         dev_data = load_sentences(dev_file)
     lstms, params, model, trainer = get_model(repr_type, vocab, tag_set, embedding_file)
-    f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
+    if repr_type != 'b':  # repr b has 5 lstms (clstm)
+        f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
+        char_lstm = None
+    else:
+        char_lstm, f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
     w = params["w"]
     b = params["bias"]
 
@@ -280,7 +347,7 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
             b1_lstm_init = b1_lstm.initial_state()
             f2_lstm_init = f2_lstm.initial_state()
             b2_lstm_init = b2_lstm.initial_state()
-            webms = get_webms(repr_type, params, sen, vocab)
+            webms = get_webms(repr_type, params, sen, vocab, char_lstm)
 
             fw1_exps = f1_lstm_init.transduce(webms)
             bw1_exps = b1_lstm_init.transduce(reversed(webms))
@@ -310,12 +377,12 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
             loss.backward()
             trainer.update()
 
-            if i % 100 == 0:
+            if i % 100 == 0 and (i > 0):
                 acc = (good /(good+bad)) * 100
                 print("Epoch %d: Train iteration %d: loss=%.4f acc=%%%.2f" % (epoch+1, i, loss_val, acc))
 
-            if (i % 500 == 0) and (dev_file is not None):
-                dev_loss, dev_acc = evaluate_dev(dev_data, (lstms, params, model, trainer), vocab)
+            if (i % 500 == 0) and (dev_file is not None) and (i > 0):
+                dev_loss, dev_acc = evaluate_dev(repr_type, dev_data, (lstms, params, model, trainer), vocab)
                 print("=======Dev iteration: loss=%.4f acc=%%%.2f=======" % (dev_loss, dev_acc))
                 dev_acc_arr.append(dev_acc)
 
@@ -349,9 +416,29 @@ def getWordIndex(word_and_tag, vocab):
     return i
 
 
-def evaluate_dev(dev_data, model_params, vocab):
+def getCharIndex(char_str, vocab):
+    """
+    get chars's index from the vocab
+    :param sen, k
+    :return:
+    """
+    if vocab.has_key(char_str):
+        i = vocab[char_str]
+    elif is_number(char_str):
+        i = vocab[UNK_NUM]
+    else:
+        i = vocab[UUUNKKK]
+
+    return i
+
+
+def evaluate_dev(repr_type, dev_data, model_params, vocab):
     (lstms, params, model, trainer) = model_params
-    f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
+    if repr_type != 'b':  # repr b has 5 lstms (clstm)
+        f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
+        char_lstm = None
+    else:
+        char_lstm, f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
     w = params["w"]
     b = params["bias"]
     good = bad = 0.0
@@ -365,7 +452,7 @@ def evaluate_dev(dev_data, model_params, vocab):
         b1_lstm_init = b1_lstm.initial_state()
         f2_lstm_init = f2_lstm.initial_state()
         b2_lstm_init = b2_lstm.initial_state()
-        webms = get_webms(repr_type, params, sen, vocab)
+        webms = get_webms(repr_type, params, sen, vocab, char_lstm)
         fw1_exps = f1_lstm_init.transduce(webms)
         bw1_exps = b1_lstm_init.transduce(reversed(webms))
         bi1 = [dy.concatenate([f, b_exp]) for f, b_exp in zip(fw1_exps, reversed(bw1_exps))]
@@ -421,16 +508,23 @@ if __name__ == '__main__':
         dev_file_option_i = sys.argv.index("--dev-file")
         dev_file = sys.argv[dev_file_option_i+1]
 
+    # not repr c
+    vocab_file = None
+    embedding_file = None
+    if_c = False
+
+    # not repr b
+    if_b = False
 
     if repr_type == 'c':
         vocab_file = sys.argv[4]
         embedding_file = sys.argv[5]
-    else:
-        vocab_file = None
-        embedding_file = None
+        if_c = True
+    elif repr_type == 'b':
+        if_b = True
 
-    if_c = (repr_type == 'c')
-    vocab = getDataVocab(train_file, if_c, vocab_file, if_c)
+
+    vocab = getDataVocab(train_file, if_c, vocab_file, if_c, if_b)
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
