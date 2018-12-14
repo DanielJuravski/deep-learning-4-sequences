@@ -47,10 +47,15 @@ def load_sentences(data):
     return sen_arr
 
 
-def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabled, char_embedding):
+def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabled, char_embedding, word_and_char_emb):
     vocab = {}
     key_count = {}  # == word_count  == char_count
     size = 0
+    my_emb = True
+    if char_embedding or input_embedding_enabled:
+        my_emb = False
+    if word_and_char_emb:
+        char_embedding = True
 
     # already trained embedding
     if input_embedding_enabled:
@@ -59,6 +64,7 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
                 word = word.rstrip()
                 vocab[word] = size
                 size += 1
+
     elif char_embedding:
         with open(train_data) as f:
             for line in f:
@@ -75,8 +81,9 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
                             size += 1
         vocab[UUUNKKK] = size
         size += 1
+
     # my embedding
-    else:
+    if my_emb:
         with open(train_data) as f:
             for line in f:
                 if line != '\n':
@@ -89,8 +96,9 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
                     if not vocab.has_key(word):
                         vocab[word] = size
                         size += 1
-        vocab[UUUNKKK] = size
-        size += 1
+        if not vocab.has_key(UUUNKKK):
+            vocab[UUUNKKK] = size
+            size += 1
 
     if subwords_enabled:
         subwords_dict = {}
@@ -115,7 +123,7 @@ def getDataVocab(train_data, input_embedding_enabled, vocab_file, subwords_enabl
         vocab[SUFF_UUUNKKK] = size
         size += 1
 
-    if not char_embedding: # if not char embedding, if any word embedding
+    if my_emb or (not char_embedding): # if not char embedding, if any word embedding
         vocab[UNK_CAP_START] = size
         size += 1
         vocab[UNK_ALLCAP] = size
@@ -249,6 +257,32 @@ def init_model_c(vocab, tag_set, embedding_file):
     return (lstms, params, model, trainer)
 
 
+def init_model_d(vocab, tag_set):
+    TAGSET_SIZE = len(tag_set)
+    VOCAB_SIZE = len(vocab)
+    params = {}
+
+    model = dy.ParameterCollection()
+
+    c_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_INPUT_DIM, model)
+    f1_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_STATE_DIM, model)
+    b1_lstm = dy.LSTMBuilder(LSTM_LAYERS, LSTM_INPUT_DIM, LSTM_STATE_DIM, model)
+    f2_lstm = dy.LSTMBuilder(LSTM_LAYERS, 2 * LSTM_STATE_DIM, LSTM_STATE_DIM, model)
+    b2_lstm = dy.LSTMBuilder(LSTM_LAYERS, 2 * LSTM_STATE_DIM, LSTM_STATE_DIM, model)
+    lstms = (c_lstm, f1_lstm, b1_lstm, f2_lstm, b2_lstm)
+
+    params["w_con"] = model.add_parameters((LSTM_INPUT_DIM, 2*LSTM_INPUT_DIM))
+    params["b_con"] = model.add_parameters((LSTM_INPUT_DIM))
+
+    params["lookup"] = model.add_lookup_parameters((VOCAB_SIZE, LSTM_INPUT_DIM), init='uniform',
+                                                   scale=(np.sqrt(6) / np.sqrt(LSTM_INPUT_DIM)))
+    params["w"] = model.add_parameters((TAGSET_SIZE, 2 * LSTM_STATE_DIM))
+    params["bias"] = model.add_parameters((TAGSET_SIZE))
+
+    trainer = dy.AdamTrainer(model)
+    return (lstms, params, model, trainer)
+
+
 def get_model(repr_type, vocab, tag_set, embedding_file):
     if repr_type == 'a':
         return init_model_a(vocab, tag_set)
@@ -258,6 +292,9 @@ def get_model(repr_type, vocab, tag_set, embedding_file):
 
     elif repr_type == 'c':
         return init_model_c(vocab, tag_set, embedding_file)
+
+    elif repr_type == 'd':
+        return init_model_d(vocab, tag_set)
 
 
 def get_webms(repr_type, params, line, vocab, char_lstm):
@@ -288,6 +325,32 @@ def get_webms(repr_type, params, line, vocab, char_lstm):
 
             sen_embs.append(s.output())
         embs = sen_embs
+
+    elif repr_type == 'd':
+        w = params['w_con']
+        b = params['b_con']
+
+        # word emb
+        indexes = [getWordIndex(x, vocab) for x in line]
+        words_embs = [E[j] for j in indexes]
+
+        # char emb
+        sen_embs = []
+        for word_and_tag in line:
+            s = char_lstm.initial_state()
+            word = word_and_tag.split()[0]
+            c_word = [(c) for c in word]
+            c_indexes = [getCharIndex(x, vocab) for x in c_word]
+            c_embs = [E[j] for j in c_indexes]
+            for c_e in c_embs:
+                s = s.add_input(c_e)
+
+            sen_embs.append(s.output())
+        char_embs = sen_embs
+
+        con_embs = [dy.concatenate([words_embs[x], char_embs[x]]) for x in range(len(words_embs))]
+
+        embs = [((w*e)+b) for e in con_embs]
 
     return embs
 
@@ -322,11 +385,11 @@ def getPreSuffWordIndex(word, vocab, length=3):
     return pre_val, suff_val
 
 
-def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
+def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file, word_and_char_emb):
     if dev_file is not None:
         dev_data = load_sentences(dev_file)
     lstms, params, model, trainer = get_model(repr_type, vocab, tag_set, embedding_file)
-    if repr_type != 'b':  # repr b has 5 lstms (clstm)
+    if repr_type != 'b' and repr_type != 'd':  # repr b has 5 lstms (clstm)
         f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
         char_lstm = None
     else:
@@ -434,7 +497,7 @@ def getCharIndex(char_str, vocab):
 
 def evaluate_dev(repr_type, dev_data, model_params, vocab):
     (lstms, params, model, trainer) = model_params
-    if repr_type != 'b':  # repr b has 5 lstms (clstm)
+    if repr_type != 'b' and repr_type != 'd':  # repr b has 5 lstms (clstm)
         f1_lstm, b1_lstm, f2_lstm, b2_lstm = lstms
         char_lstm = None
     else:
@@ -516,19 +579,24 @@ if __name__ == '__main__':
     # not repr b
     if_b = False
 
+    # not repr d
+    word_and_char_emb = False
+
     if repr_type == 'c':
         vocab_file = sys.argv[4]
         embedding_file = sys.argv[5]
         if_c = True
     elif repr_type == 'b':
         if_b = True
+    elif repr_type == 'd':
+        word_and_char_emb = True
 
 
-    vocab = getDataVocab(train_file, if_c, vocab_file, if_c, if_b)
+    vocab = getDataVocab(train_file, if_c, vocab_file, if_c, if_b, word_and_char_emb)
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
-    model_params, dev_acc_arr = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file)
+    model_params, dev_acc_arr = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file, word_and_char_emb)
 
     if ("--analyse" in sys.argv) and (dev_file is not None):
         analyse_statistics(dev_acc_arr, repr_type)
