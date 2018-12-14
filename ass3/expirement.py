@@ -5,7 +5,7 @@ import datetime
 import dynet as dy
 import numpy as np
 
-EPOCHS = 10
+EPOCHS = 100
 
 MLP_OUTPUT_SIZE = 2
 
@@ -17,6 +17,12 @@ N1 = 8
 
 int2char = None
 char2int = None
+
+train_loss = []
+dev_loss = []
+train_acc = []
+dev_acc = []
+test_acc = 0
 def get_train_and_validation(train_pos_file, train_neg_file):
 
     all_x, all_y = get_xy_from_files(train_neg_file, train_pos_file)
@@ -48,7 +54,7 @@ def shuffle(x, y):
 
 
 def init_model():
-    characters = list("123456789abcd ")
+    characters = list("0123456789abcd ")
     characters.append("<EOS>")
     global int2char
     int2char = list(characters)
@@ -56,6 +62,10 @@ def init_model():
     char2int = {c:i for i,c in enumerate(characters)}
     global VOCAB_SIZE
     VOCAB_SIZE = len(characters)
+
+    dyparams = dy.DynetParams()
+    dyparams.set_random_seed(666)
+    dyparams.init()
 
     pc = dy.ParameterCollection()
     lstm = dy.LSTMBuilder(LAYERS, INPUT_DIM, HIDDEN_DIM, pc)
@@ -110,11 +120,13 @@ def train(model, tagged_samples, trainer, epoch_i):
     lstm, params, pc = model
 
     correct = wrong = 0.0
+    epoch_loss = 0
     for i in range(len(train_y)):
         line = train_x[i]
         y = train_y[i]
         loss, yhat = predict(lstm, params, line, y)
         loss_value = loss.value()
+        epoch_loss += loss_value
         loss.backward()
         trainer.update()
 
@@ -128,13 +140,16 @@ def train(model, tagged_samples, trainer, epoch_i):
             precent = correct / (correct+wrong) * 100
             print("Epoch:%d train iteration:%d loss=%.4f acc=%.2f%%" % (epoch_i, i, loss_value, precent))
 
+    epoch_loss /= len(train_y)
+    train_loss.append(epoch_loss)
+    train_acc.append((correct / (correct+wrong) * 100))
+
 
 def validate(model, dev_samples, epoch):
     dev_x, dev_y = dev_samples
     lstm, params, pc = model
 
     correct = wrong = total_loss_val = 0.0
-
     for i in range(len(dev_y)):
         line = dev_x[i]
         y = dev_y[i]
@@ -149,7 +164,9 @@ def validate(model, dev_samples, epoch):
             wrong += 1
 
     precent = correct/(correct+wrong) * 100
-    print("===== Validation: loss=%.4f acc=%.2f%% =====" % (total_loss_val, precent))
+    print("=====epoch%d Validation: loss=%.4f acc=%.2f%% =====" % (epoch, total_loss_val, precent))
+    dev_loss.append(total_loss_val/ float(len(dev_y)))
+    dev_acc.append((correct / (correct+wrong) * 100))
 
 
 def test(model, test_set):
@@ -169,6 +186,7 @@ def test(model, test_set):
 
     precent = correct / (correct + wrong) * 100
     print("\nTest percent = %2f%%" % precent)
+    return precent
 
 
 if __name__ == '__main__':
@@ -176,6 +194,7 @@ if __name__ == '__main__':
     train_neg_file = "data/neg_examples"
     test_pos_file = "data/pos_test"
     test_neg_file = "data/neg_test"
+    test_type = "basic"
 
     if len(sys.argv) > 3:
         train_pos_file = sys.argv[1]
@@ -183,16 +202,24 @@ if __name__ == '__main__':
         test_pos_file = sys.argv[3]
         test_neg_file = sys.argv[4]
 
+    if len(sys.argv) > 4:
+        test_type = sys.argv[5]
+
     train_x, train_y, dev_x, dev_y = get_train_and_validation(train_pos_file, train_neg_file)
     model, trainer = init_model()
 
     print("started at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for i in range(EPOCHS):
         train_x, train_y = shuffle(train_x, train_y)
-        trained_model = train(model, (train_x, train_y), trainer, i)
+        trained_model = train(model, (train_x, train_y), trainer, i+1)
 
         dev_x, dev_y = shuffle(dev_x, dev_y)
         validate(model, (dev_x, dev_y), (i+1))
 
     test_x, test_y = get_xy_from_files(test_neg_file, test_pos_file)
-    test(model, (test_x, test_y))
+    test_acc = test(model, (test_x, test_y))
+    np.save(test_type+"_train_loss", train_loss)
+    np.save(test_type+"_dev_loss", dev_loss)
+    np.save(test_type+"_train_acc", train_acc)
+    np.save(test_type+"_dev_acc", dev_acc)
+    np.save(test_type+"_test_acc", [test_acc])
