@@ -11,8 +11,10 @@ def show_graph(train_loss, train_acc, dev_loss, dev_acc, test_acc, name):
     plt.plot(dev_loss, label="validation loss")
     plt.legend()
     plt.subplot(1, 2, 2)
+    # axes.setyticks(1,100,1)
     plt.plot(train_acc, label="train accuracy")
     plt.plot(dev_acc, label="validation accuracy")
+    plt.yticks(np.arange(0,101,10))
     plt.legend()
     plt.savefig(name+".png")
 

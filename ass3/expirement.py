@@ -217,6 +217,7 @@ if __name__ == '__main__':
         validate(model, (dev_x, dev_y), (i+1))
 
     test_x, test_y = get_xy_from_files(test_neg_file, test_pos_file)
+    test_x, test_y = shuffle(test_x, test_y)
     test_acc = test(model, (test_x, test_y))
     np.save(test_type+"_train_loss", train_loss)
     np.save(test_type+"_dev_loss", dev_loss)
