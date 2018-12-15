@@ -354,7 +354,7 @@ if __name__ == '__main__':
         output_file_option_i = sys.argv.index("--output")
         output_file = sys.argv[output_file_option_i + 1]
     else:
-        output_file = input_file
+        output_file = "test.pred"
 
     sen_arr = load_sentences(input_file)
     vocab_file_name = repr_type + '_vocab'

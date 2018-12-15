@@ -1,3 +1,5 @@
+python version: 2.7
+
 Required packeges:
 	-'random'
 	-'dynet'
@@ -14,9 +16,9 @@ $ python bilstmTrain.py <repr> <trainFile> <modelFile> [options]
 
 -options:
 	--dev-file <dev file>: For seeing dev statistics (loss and accuracy) during the learning. (optional).
-	--analyse: For getting dev accuracy data saved and show plot. (available only if --dev-file is turned). (optional).
-	--vocab <vocab file>: For setting your own vocab. Default vocab is the one of Ass2. (works only if --wordVectors is turned). (optional).
-	--wordVectors <wordVectors file>: For setting your own embedding. Default embedding is the one of Ass2. (works only if --vocab is turned). (optional).
+	--analyse: For getting dev accuracy data saved and show plot. (available only if --dev-file option is given). (optional).
+	--vocab <vocab file>: For setting your own vocab. Default vocab is the one of Ass2. (works only if --wordVectors option is given). (optional).
+	--wordVectors <wordVectors file>: For setting your own embedding. Default embedding is the one of Ass2. (works only if --vocab option is given). (optional).
 
 
 
@@ -27,7 +29,7 @@ $ python bilstmTrain.py <repr> <trainFile> <modelFile> [options]
 $ python bilstmTag.py <repr> <modelFile> <inputFile> [options]
 
 -options:
-	--output <pred file>: Useful for not overwrite the exist data, but write the preds to a new file. If not user, default is the <inputFile>. (optional).
+	--output <pred file>: Path for the predicted data output. If not given, default is the test.pred in current directory. (optional).
 
 That script assumes that, the <modelFile> that is passed, fitts the <repr> that is passed. Otherwise there will be an exeption.
 i.e:
