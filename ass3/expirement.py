@@ -103,7 +103,7 @@ def predict(lstm, params, line, y):
     sentence = ["<EOS>"] + list(line) + ["<EOS>"]
     sentence = [char2int[c] for c in sentence]
     s = s0
-    # loss = []
+
     for char in sentence:
         s = s.add_input(lookup[char])
 
@@ -111,7 +111,6 @@ def predict(lstm, params, line, y):
     yhat = dy.softmax(mlp(lstm_out, params))
     loss = -(dy.log(dy.pick(yhat, y)))
 
-    #loss = dy.esum(loss)
     return loss, yhat
 
 
@@ -221,8 +220,10 @@ if __name__ == '__main__':
     test_x, test_y = shuffle(test_x, test_y)
     test_acc = test(model, (test_x, test_y))
     print("finished at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    np.save(test_type+"_train_loss", train_loss)
-    np.save(test_type+"_dev_loss", dev_loss)
-    np.save(test_type+"_train_acc", train_acc)
-    np.save(test_type+"_dev_acc", dev_acc)
-    np.save(test_type+"_test_acc", [test_acc])
+
+    # Lines to save data for graphs
+    # np.save(test_type+"_train_loss", train_loss)
+    # np.save(test_type+"_dev_loss", dev_loss)
+    # np.save(test_type+"_train_acc", train_acc)
+    # np.save(test_type+"_dev_acc", dev_acc)
+    # np.save(test_type+"_test_acc", [test_acc])
