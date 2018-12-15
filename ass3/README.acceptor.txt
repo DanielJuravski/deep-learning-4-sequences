@@ -8,7 +8,7 @@ numpy
 
 ######################
 how to run:
-python expirement.py <positive_examples_file> <negative_examples_file> <positive_examples_test_file> <negative_examples_test_file>
+python experiment.py <positive_examples_file> <negative_examples_file> <positive_examples_test_file> <negative_examples_test_file>
 
 Where the first 4 parameters are positive/negative examples for train and test.
 
