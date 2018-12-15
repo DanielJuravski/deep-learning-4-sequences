@@ -5,7 +5,7 @@ import datetime
 import dynet as dy
 import numpy as np
 
-EPOCHS = 100
+EPOCHS = 5
 
 MLP_OUTPUT_SIZE = 2
 
@@ -164,9 +164,10 @@ def validate(model, dev_samples, epoch):
             wrong += 1
 
     precent = correct/(correct+wrong) * 100
-    print("=====epoch%d Validation: loss=%.4f acc=%.2f%% =====" % (epoch, total_loss_val, precent))
-    dev_loss.append(total_loss_val/ float(len(dev_y)))
-    dev_acc.append((correct / (correct+wrong) * 100))
+    total_loss = total_loss_val/ float(len(dev_y))
+    print("=====epoch%d Validation: loss=%.4f acc=%.2f%% =====" % (epoch, total_loss, precent))
+    dev_loss.append(total_loss)
+    dev_acc.append(precent)
 
 
 def test(model, test_set):
@@ -219,6 +220,7 @@ if __name__ == '__main__':
     test_x, test_y = get_xy_from_files(test_neg_file, test_pos_file)
     test_x, test_y = shuffle(test_x, test_y)
     test_acc = test(model, (test_x, test_y))
+    print("finished at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     np.save(test_type+"_train_loss", train_loss)
     np.save(test_type+"_dev_loss", dev_loss)
     np.save(test_type+"_train_acc", train_acc)
