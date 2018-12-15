@@ -31,9 +31,13 @@ $ python bilstmTag.py <repr> <modelFile> <inputFile> [options]
 -options:
 	--output <pred file>: Path for the predicted data output. If not given, default is the test.pred in current directory. (optional).
 
-That script assumes that, the <modelFile> that is passed, fitts the <repr> that is passed. Otherwise there will be an exeption.
+That script assumes that:
+1. The <modelFile> that is passed, fits the <repr> that is passed. Otherwise there will be an exeption.
 i.e:
 $ python bilstmTrain.py a trainFile modelFile
 will create model that can feed only the next command:
 $ python bilstmTag.py a modelFile inputFile
 and so on...
+
+2. bilstmTrain.py outputs 2 files to the current directory (tag_set.pkl, <repr>_vocab.pkl).
+These are required to be in the current directory when running bilstmTag.py.
