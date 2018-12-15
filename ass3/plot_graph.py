@@ -20,6 +20,8 @@ if __name__ == '__main__':
     plt.ylabel('Accuracy (%)')
     plt.xlabel('Iterations')
     # plt.xticks(np.arange(0, step=5))
+    min_acc = min(min(a_data), min(b_data), min(c_data), min(d_data))
+    plt.yticks(np.arange(round(min_acc), 101, 5))
     plt.title('All representations')
     plt.legend()
     plt.grid(True)

@@ -6,13 +6,13 @@ dynet_config.set(autobatch=1)
 import dynet as dy
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 
 EPOCHS = 5
 
 LSTM_LAYERS = 1
 LSTM_INPUT_DIM = 50
 LSTM_STATE_DIM = 50
-#C_LSTM_INPUT = 20
 
 
 MIN_WORD_APPEARANCE = 2
@@ -385,7 +385,7 @@ def getPreSuffWordIndex(word, vocab, length=3):
     return pre_val, suff_val
 
 
-def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file, word_and_char_emb):
+def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
     if dev_file is not None:
         dev_data = load_sentences(dev_file)
     lstms, params, model, trainer = get_model(repr_type, vocab, tag_set, embedding_file)
@@ -561,6 +561,16 @@ def analyse_statistics(dev_acc_arr, repr_type):
     plt.close()
 
 
+def saveModel(model_file, model_params):
+    lstms, params, model, trainer = model_params
+    model.save(model_file)
+
+
+def save_obj(obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+
 if __name__ == '__main__':
     repr_type = sys.argv[1]
     train_file = sys.argv[2]
@@ -583,27 +593,36 @@ if __name__ == '__main__':
     word_and_char_emb = False
 
     if repr_type == 'c':
-        vocab_file = sys.argv[4]
-        embedding_file = sys.argv[5]
+        if "--vocab" in sys.argv:
+            vocab_file_option_i = sys.argv.index("--vocab")
+            vocab_file = sys.argv[vocab_file_option_i + 1]
+        else:
+            vocab_file = 'data/vocab.txt'
+        if "--wordVectors" in sys.argv:
+            wordVectors_file_option_i = sys.argv.index("--wordVectors")
+            embedding_file = sys.argv[wordVectors_file_option_i + 1]
+        else:
+            embedding_file = 'data/wordVectors.txt'
         if_c = True
+
     elif repr_type == 'b':
         if_b = True
     elif repr_type == 'd':
         word_and_char_emb = True
 
-
     vocab = getDataVocab(train_file, if_c, vocab_file, if_c, if_b, word_and_char_emb)
     sen_arr = load_sentences(train_file)
     tag_set = load_tag_set(sen_arr)
     revered_tag_set = reverse_tag_set(tag_set)
-    model_params, dev_acc_arr = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file, word_and_char_emb)
+    model_params, dev_acc_arr = train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file)
+    saveModel(model_file, model_params)
+    vocab_file_name = repr_type + '_vocab'
+    save_obj(vocab, vocab_file_name)
+    save_obj(revered_tag_set, 'tag_set')
 
     if ("--analyse" in sys.argv) and (dev_file is not None):
         analyse_statistics(dev_acc_arr, repr_type)
 
 
     print("Ended at " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-
-
-
 
