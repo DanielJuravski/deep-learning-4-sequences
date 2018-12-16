@@ -426,7 +426,8 @@ def train(sen_arr, repr_type, vocab, tag_set, dev_file, embedding_file):
 
             for yhat, gold in zip(yhat_sequence, golds_sequence):
                 if yhat == gold:
-                    good += 1
+                    if gold != tag_set['O']:
+                        good += 1
                 else:
                     bad += 1
 
@@ -529,7 +530,8 @@ def evaluate_dev(repr_type, dev_data, model_params, vocab):
         for yhat, gold in zip(yhat_sequence, golds_sequence):
             counter += 1
             if yhat == gold:
-                good += 1
+                if gold != tag_set['O']:
+                    good += 1
             else:
                 bad += 1
 

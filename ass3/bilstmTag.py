@@ -44,7 +44,7 @@ def load_sentences(data):
 
 
 def load_obj(name):
-    with open(name + '.pkl', 'rb') as f:
+    with open(name, 'rb') as f:
         return pickle.load(f)
 
 
@@ -356,10 +356,21 @@ if __name__ == '__main__':
     else:
         output_file = "test.pred"
 
-    sen_arr = load_sentences(input_file)
-    vocab_file_name = repr_type + '_vocab'
+    if "--vocab" in sys.argv:
+        vocab_file_option_i = sys.argv.index("--vocab")
+        vocab_file_name = sys.argv[vocab_file_option_i + 1]
+    else:
+        vocab_file_name = repr_type + '_vocab.pkl'
+
+    if "--tags" in sys.argv:
+        tagset_file_option_i = sys.argv.index("--tags")
+        tagset_file_name = sys.argv[tagset_file_option_i + 1]
+    else:
+        tagset_file_name = 'tag_set.pkl'
+
     vocab = load_obj(vocab_file_name)
-    tag_set = load_obj('tag_set')
+    tag_set = load_obj(tagset_file_name)
+    sen_arr = load_sentences(input_file)
     preds = evaluateTest(repr_type, sen_arr, model_file, vocab)
 
     write2file(preds, tag_set, output_file)
