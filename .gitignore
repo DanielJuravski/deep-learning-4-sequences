@@ -5,3 +5,5 @@
 env/
 **/env/
 get-pip.py
+ass2/
+ass3/
