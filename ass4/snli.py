@@ -2,6 +2,7 @@ import load_data
 import dynet as dy
 import numpy as np
 from random import randint
+from random import shuffle
 
 EPOCHS = 1
 
@@ -103,16 +104,65 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data):
     return E_matrix
 
 
+def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2, emb_data):
+    """
+    calculates alpha & beta from E, sen1 and sen2
+    :param E_matrix:
+    :param len_cols:
+    :param len_rows:
+    :param sen1:
+    :param sen2:
+    :param emb_data:
+    :return: alpha and beta np array with size of sen2 and sen1 respectively * LEN_EMB_VECTOR (2d array)
+    """
+    sigma_exp_beta = np.array([])
+    for i in range(len_cols):
+        sigma_exp = 0
+        for j in range(len_rows):
+            sigma_exp += np.exp(E_matrix[i][j])
+        sigma_exp_beta = np.append(sigma_exp_beta, sigma_exp)
+
+    beta = []
+    for j in range(len_rows):
+        beta_i = 0
+        for i in range(len_cols):
+            beta_i += np.exp(E_matrix[i][j])*(get_word_from_dict(sen1[i], emb_data))/sigma_exp_beta[i]
+        beta.append(beta_i)
+    beta = np.array(beta)
+
+    sigma_exp_alpha = np.array([])
+    for j in range(len_rows):
+        sigma_exp = 0
+        for i in range(len_cols):
+            sigma_exp += np.exp(E_matrix[i][j])
+        sigma_exp_alpha = np.append(sigma_exp_alpha, sigma_exp)
+
+    alpha = []
+    for i in range(len_cols):
+        alpha_i = 0
+        for j in range(len_rows):
+            alpha_i += np.exp(E_matrix[i][j]) * (get_word_from_dict(sen2[j], emb_data)) / sigma_exp_alpha[j]
+        alpha.append(alpha_i)
+    alpha = np.array(alpha)
+
+    return alpha, beta
+
+
+
+
 def train_model(train_data, dev_data, emb_data, model, model_params):
     for epoch_i in range(EPOCHS):
+        shuffle(train_data)
         for sample_i in range(len(train_data)):
+            #print sample_i
             dy.renew_cg()
             sample = train_data[sample_i]
             sen1, sen2, label = get_x_y(sample)
             len_sen1 = len(sen1)
             len_sen2 = len(sen2)
-            E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data)
 
+            E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data)
+            alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2, emb_data)
             pass
 
 

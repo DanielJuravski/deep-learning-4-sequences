@@ -29,7 +29,7 @@ def loadSNLI_labeled_data(snli_file):
                 sen2 = str(line_json_data[u'sentence2'])
                 data.append((sen1, sen2, annotator_label))
 
-    print "File" + snli_file + "was loaded"
+    print "File " + snli_file + " was loaded"
     return data
 
 
@@ -75,7 +75,7 @@ def get_emb_data(glove_emb_file):
         emb_vec = np.random.uniform(-eps, eps, LEN_EMB_VECTOR)#.reshape(1,LEN_EMB_VECTOR)
         emb_dict[word_str] = emb_vec
 
-    print "File" + glove_emb_file + "was loaded"
+    print "File " + glove_emb_file + " was loaded"
     return emb_dict
 
 
