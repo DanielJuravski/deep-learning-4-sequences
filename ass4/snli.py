@@ -5,6 +5,8 @@ from random import randint
 from random import shuffle
 import datetime
 import sys
+import re
+import string
 
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
@@ -34,9 +36,11 @@ def init_model():
     model_params = {}
 
     # F feed-forward
-    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE))
+    eps = np.sqrt(6) / np.sqrt(F_INPUT_SIZE + F_HIDDEN_SIZE)
+    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE),init='uniform', scale=eps)
     F_b1 = model.add_parameters((F_HIDDEN_SIZE))
-    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE))
+    eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE + F_HIDDEN_SIZE)
+    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE),init='uniform', scale=eps)
     F_b2 = model.add_parameters((F_OUTPUT_SIZE))
 
     model_params['F_w1'] = F_w1
@@ -45,9 +49,11 @@ def init_model():
     model_params['F_b2'] = F_b2
 
     # G feed-forward
-    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE))
+    eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE + G_INPUT_SIZE)
+    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE),init='uniform', scale=eps)
     G_b1 = model.add_parameters((G_HIDDEN_SIZE))
-    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE))
+    eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE + G_HIDDEN_SIZE)
+    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE),init='uniform', scale=eps)
     G_b2 = model.add_parameters((G_OUTPUT_SIZE))
 
     model_params['G_w1'] = G_w1
@@ -56,9 +62,11 @@ def init_model():
     model_params['G_b2'] = G_b2
 
     # H feed-forward
-    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE))
+    eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE + H_INPUT_SIZE)
+    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE),init='uniform', scale=eps)
     H_b1 = model.add_parameters((H_HIDDEN_SIZE))
-    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE))
+    eps = np.sqrt(6) / np.sqrt(H_OUTPUT_SIZE + H_HIDDEN_SIZE)
+    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE),init='uniform', scale=eps)
     H_b2 = model.add_parameters((H_OUTPUT_SIZE))
 
     model_params['H_w1'] = H_w1
@@ -80,18 +88,31 @@ def get_x_y(sample):
     return sen1, sen2, label
 
 
+def get_sen_from_dict(sen, emb_dict):
+    emb_sen = []
+    for word in sen:
+        emb_word = get_word_from_dict(word, emb_dict)
+        emb_sen.append(emb_word)
+
+    return emb_sen
+
+
 def get_word_from_dict(word, emb_dict):
+    word = word.lower()
+    word = word[:-1] + word[-1:].translate(None, string.punctuation)
+
     if emb_dict.has_key(word):
         word_emb = emb_dict[word]
     else:
         randoov = randint(0, NUM_OF_OOV_EMBEDDINGS-1)
         rand_word = OOV_EMBEDDING_STR + str(randoov)
         word_emb = emb_dict[rand_word]
+        print "not in dict: " + word
 
     return word_emb
 
 
-def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data):
+def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params):
     """
 
     :param sen1: str
@@ -112,9 +133,8 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data):
     F_sen1_list = []
     for i in range(len_sen1):
         word = sen1[i]
-        emb = get_word_from_dict(word, emb_data)
         F_x = dy.vecInput(F_INPUT_SIZE)
-        F_x.set(emb)
+        F_x.set(word)
         F_i = (F_w2 * (dy.rectify(F_w1*F_x + F_b1)) + F_b2)
         F_sen1_list.append(F_i)
     F_sen1 = np.array(F_sen1_list)
@@ -122,9 +142,8 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data):
     F_sen2_list = []
     for j in range(len_sen2):
         word = sen2[j]
-        emb = get_word_from_dict(word, emb_data)
         F_j = dy.vecInput(F_INPUT_SIZE)
-        F_j.set(emb)
+        F_j.set(word)
         F_j = (F_w2 * (dy.rectify(F_w1*F_j + F_b1)) + F_b2)
         F_sen2_list.append(F_j)
     F_sen2 = np.array(F_sen2_list)
@@ -137,7 +156,7 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data):
     return E_matrix
 
 
-def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2, emb_data):
+def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2):
     """
     calculates alpha & beta from E, sen1 and sen2
     :param E_matrix:
@@ -159,7 +178,7 @@ def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2, emb_data):
     for j in range(len_rows):
         beta_i = 0
         for i in range(len_cols):
-            beta_i += np.exp(E_matrix[i][j])*(get_word_from_dict(sen1[i], emb_data))/sigma_exp_beta[i]
+            beta_i += np.exp(E_matrix[i][j]) * (sen1[i]) / sigma_exp_beta[i]
         beta.append(beta_i)
     beta = np.array(beta)
 
@@ -174,14 +193,14 @@ def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2, emb_data):
     for i in range(len_cols):
         alpha_i = 0
         for j in range(len_rows):
-            alpha_i += np.exp(E_matrix[i][j]) * (get_word_from_dict(sen2[j], emb_data)) / sigma_exp_alpha[j]
+            alpha_i += np.exp(E_matrix[i][j]) * (sen2[j]) / sigma_exp_alpha[j]
         alpha.append(alpha_i)
     alpha = np.array(alpha)
 
     return alpha, beta
 
 
-def get_v1_v2(beta, alpha, sen1, sen2, len_sen1, len_sen2, emb_data, model, model_params):
+def get_v1_v2(beta, alpha, sen1, sen2, len_sen1, len_sen2, model, model_params):
     """
 
     :param beta:
@@ -202,9 +221,8 @@ def get_v1_v2(beta, alpha, sen1, sen2, len_sen1, len_sen2, emb_data, model, mode
 
     v1 = []
     for i in range(len_sen1):
-        a_i = get_word_from_dict(sen1[i], emb_data)
         beta_i = beta[i]
-        con = a_i + beta_i
+        con = sen1[i] + beta_i
         G_x = dy.vecInput(G_INPUT_SIZE)
         G_x.set(con)
         G_i = (G_w2 * (dy.rectify(G_w1 * G_x + G_b1)) + G_b2)
@@ -212,9 +230,8 @@ def get_v1_v2(beta, alpha, sen1, sen2, len_sen1, len_sen2, emb_data, model, mode
 
     v2 = []
     for j in range(len_sen2):
-        b_j = get_word_from_dict(sen2[j], emb_data)
         alpha_j = alpha[j]
-        con = b_j + alpha_j
+        con = sen2[j] + alpha_j
         G_x = dy.vecInput(G_INPUT_SIZE)
         G_x.set(con)
         G_i = (G_w2 * (dy.rectify(G_w1 * G_x + G_b1)) + G_b2)
@@ -264,15 +281,17 @@ def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
             #print sample_i
             dy.renew_cg()
             sample = train_data[sample_i]
-            sen1, sen2, label = get_x_y(sample)
-            len_sen1 = len(sen1)
-            len_sen2 = len(sen2)
+            sen1_str, sen2_str, label = get_x_y(sample)
+            len_sen1 = len(sen1_str)
+            len_sen2 = len(sen2_str)
+            sen1 = get_sen_from_dict(sen1_str, emb_data)
+            sen2 = get_sen_from_dict(sen2_str, emb_data)
             #y = dy.scalarInput(0)
             #y.set(label)
 
-            E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params, emb_data)
-            alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2, emb_data)
-            v1, v2 = get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, emb_data, model, model_params)
+            E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params)
+            alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2)
+            v1, v2 = get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params)
             y_hat_vec_expression = aggregate_v1_v2(v1, v2, model, model_params)
 
             loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
@@ -290,7 +309,7 @@ def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
             if sample_i % 100 == 0 and (sample_i > 0):
                 acc = (correct /(correct+wrong)) * 100
                 relative_total_loss = total_loss/sample_i
-                print("Epoch %d: Train iteration %d: total loss=%.4f loss=%.4f acc=%.2f" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
+                print("Epoch %d: Train iteration %d: total loss=%.4f loss=%.4f acc=%.2f%%" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
 
 
 

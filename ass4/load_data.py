@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import datetime
+import fileinput
 
 
 ANNOTATOR_DICT = {}
@@ -8,7 +9,7 @@ ANNOTATOR_DICT['neutral'] = 0
 ANNOTATOR_DICT['contradiction'] = 1
 ANNOTATOR_DICT['entailment'] = 2
 
-NUM_OF_OOV_EMBEDDINGS = 1
+NUM_OF_OOV_EMBEDDINGS = 100
 LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
@@ -21,8 +22,8 @@ def loadSNLI_labeled_data(snli_file):
     data = []
     with open(snli_file) as f:
         f_lines = f.readlines()
-        for line_i in range(len(f_lines)):
-        #for line_i in range(10000):
+        #for line_i in range(len(f_lines)):
+        for line_i in range(10000):
             line = f_lines[line_i]
             line_json_data = json.loads(line)
             annotator_str_label = str(line_json_data[u'annotator_labels'][0])
@@ -71,7 +72,6 @@ def get_emb_data(glove_emb_file):
             word_str = line_arr[0]
             word_vec = np.array([(float(x)) for x in line_arr[1:]])#.reshape(1,LEN_EMB_VECTOR)
             emb_dict[word_str] = word_vec
-
     # add to dict emb for oov words
     eps = np.sqrt(6) / np.sqrt(LEN_EMB_VECTOR + NUM_OF_OOV_EMBEDDINGS)
     for i in range(NUM_OF_OOV_EMBEDDINGS):
@@ -83,16 +83,16 @@ def get_emb_data(glove_emb_file):
     return emb_dict
 
 
-# if __name__ == '__main__':
-#     # snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
-#     # snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
-#     # snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
-#
-#     # train_data = loadSNLI_labeled_data(snli_train_file)
-#     # dev_data = loadSNLI_labeled_data(snli_dev_file)
-#     # test_data = loadSNLI_unlabeled_data(snli_test_file)
-#
-#     # glove_emb_file = 'data/glove/glove.6B.300d.txt'
-#     # emb_data = get_emb_data(glove_emb_file)
-#
-#     pass
+if __name__ == '__main__':
+    # snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
+    # snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
+    # snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
+
+    # train_data = loadSNLI_labeled_data(snli_train_file)
+    # dev_data = loadSNLI_labeled_data(snli_dev_file)
+    # test_data = loadSNLI_unlabeled_data(snli_test_file)
+
+    glove_emb_file = 'data/glove/glove.6B.300d.txt'
+    emb_data = get_emb_data(glove_emb_file)
+
+    pass
