@@ -4,14 +4,15 @@ import numpy as np
 from random import randint
 from random import shuffle
 import datetime
+import sys
 
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 1
-LR = 0.005
+EPOCHS = 5
+LR = 0.001
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
 F_HIDDEN_SIZE = 200
@@ -289,23 +290,27 @@ def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
             if sample_i % 100 == 0 and (sample_i > 0):
                 acc = (correct /(correct+wrong)) * 100
                 relative_total_loss = total_loss/sample_i
-                print("Epoch %d: Train iteration %d: loss=%.4f acc=%%%.2f" % (epoch_i+1, sample_i, relative_total_loss, acc))
+                print("Epoch %d: Train iteration %d: total loss=%.4f loss=%.4f acc=%.2f" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
 
 
 
 
 
 if __name__ == '__main__':
-    snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
-    snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
-    snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
+    if len(sys.argv) > 2:
+        snli_train_file = sys.argv[1]
+        glove_emb_file = sys.argv[2]
+    else:
+        snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
+        snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
+        snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
+
+        glove_emb_file = 'data/glove/glove.6B.300d.txt'
 
     train_data = load_data.loadSNLI_labeled_data(snli_train_file)
     #dev_data = load_data.loadSNLI_labeled_data(snli_dev_file)
     dev_data = None
     #test_data = load_data.loadSNLI_labeled_data(snli_test_file)
-
-    glove_emb_file = 'data/glove/glove.6B.300d.txt'
     emb_data = load_data.get_emb_data(glove_emb_file)
 
 
