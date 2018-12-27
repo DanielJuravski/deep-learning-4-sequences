@@ -22,8 +22,8 @@ def loadSNLI_labeled_data(snli_file):
     data = []
     with open(snli_file) as f:
         f_lines = f.readlines()
-        #for line_i in range(len(f_lines)):
-        for line_i in range(10000):
+        for line_i in range(len(f_lines)):
+        #for line_i in range(1000):
             line = f_lines[line_i]
             line_json_data = json.loads(line)
             annotator_str_label = str(line_json_data[u'annotator_labels'][0])

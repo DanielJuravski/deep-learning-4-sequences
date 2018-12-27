@@ -5,8 +5,8 @@ from random import randint
 from random import shuffle
 import datetime
 import sys
-import re
 import string
+import matplotlib.pyplot as plt
 
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
@@ -14,7 +14,7 @@ NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
 EPOCHS = 5
-LR = 0.005
+LR = 0.001
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
 F_HIDDEN_SIZE = 200
@@ -107,9 +107,10 @@ def get_word_from_dict(word, emb_dict):
         randoov = randint(0, NUM_OF_OOV_EMBEDDINGS-1)
         rand_word = OOV_EMBEDDING_STR + str(randoov)
         word_emb = emb_dict[rand_word]
-        print "not in dict: " + word
+        #print "not in dict: " + word
 
-    return word_emb
+    word_dy_exp = dy.inputTensor(word_emb)
+    return word_dy_exp
 
 
 def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params):
@@ -124,34 +125,32 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params):
     :param emb_data:
     :return: matrix of np.zeroes
     """
-    E_matrix = np.zeros((len_sen1, len_sen2))
+    E_matrix = []
     F_w1 = model_params['F_w1']
     F_b1 = model_params['F_b1']
     F_w2 = model_params['F_w2']
     F_b2 = model_params['F_b2']
 
-    F_sen1_list = []
+    F_sen1 = []
     for i in range(len_sen1):
         word = sen1[i]
-        F_x = dy.vecInput(F_INPUT_SIZE)
-        F_x.set(word)
-        F_i = (F_w2 * (dy.rectify(F_w1*F_x + F_b1)) + F_b2)
-        F_sen1_list.append(F_i)
-    F_sen1 = np.array(F_sen1_list)
+        F_x = word
+        F_i = (F_w2 * (dy.rectify((F_w1*F_x) + F_b1)) + F_b2)
+        F_sen1.append(F_i)
 
-    F_sen2_list = []
+    F_sen2 = []
     for j in range(len_sen2):
         word = sen2[j]
-        F_j = dy.vecInput(F_INPUT_SIZE)
-        F_j.set(word)
-        F_j = (F_w2 * (dy.rectify(F_w1*F_j + F_b1)) + F_b2)
-        F_sen2_list.append(F_j)
-    F_sen2 = np.array(F_sen2_list)
+        F_j = word
+        F_j = (F_w2 * (dy.rectify((F_w1*F_j) + F_b1)) + F_b2)
+        F_sen2.append(F_j)
 
     for i in range(len_sen1):
+        E_row = []
         for j in range(len_sen2):
             e_ij = (dy.transpose(F_sen1[i])) * F_sen2[j]
-            E_matrix[i][j] = e_ij.value()
+            E_row.append(e_ij)
+        E_matrix.append(E_row)
 
     return E_matrix
 
@@ -167,34 +166,34 @@ def get_alpha_beta(E_matrix, len_cols, len_rows, sen1, sen2):
     :param emb_data:
     :return: alpha and beta np array with size of sen2 and sen1 respectively * LEN_EMB_VECTOR (2d array)
     """
-    sigma_exp_beta = np.array([])
+    sigma_exp_beta = []
     for i in range(len_cols):
-        sigma_exp = 0
+        sigma_exp = []
         for j in range(len_rows):
-            sigma_exp += np.exp(E_matrix[i][j])
-        sigma_exp_beta = np.append(sigma_exp_beta, sigma_exp)
+            sigma_exp.append(dy.exp(E_matrix[i][j]))
+        sigma_exp_beta.append(dy.esum(sigma_exp))
 
     beta = []
     for j in range(len_rows):
-        beta_i = 0
+        beta_i = []
         for i in range(len_cols):
-            beta_i += np.exp(E_matrix[i][j]) * (sen1[i]) / sigma_exp_beta[i]
-        beta.append(beta_i)
+            beta_i.append(dy.cmult((dy.cdiv(dy.exp(E_matrix[i][j]), sigma_exp_beta[i])), (sen1[i])))
+        beta.append(dy.esum(beta_i))
     beta = np.array(beta)
 
-    sigma_exp_alpha = np.array([])
+    sigma_exp_alpha = []
     for j in range(len_rows):
-        sigma_exp = 0
+        sigma_exp = []
         for i in range(len_cols):
-            sigma_exp += np.exp(E_matrix[i][j])
-        sigma_exp_alpha = np.append(sigma_exp_alpha, sigma_exp)
+            sigma_exp.append(dy.exp(E_matrix[i][j]))
+        sigma_exp_alpha.append(dy.esum(sigma_exp))
 
     alpha = []
     for i in range(len_cols):
-        alpha_i = 0
+        alpha_i = []
         for j in range(len_rows):
-            alpha_i += np.exp(E_matrix[i][j]) * (sen2[j]) / sigma_exp_alpha[j]
-        alpha.append(alpha_i)
+            alpha_i.append(dy.cmult((dy.cdiv(dy.exp(E_matrix[i][j]), sigma_exp_alpha[j])), (sen2[j])))
+        alpha.append(dy.esum(alpha_i))
     alpha = np.array(alpha)
 
     return alpha, beta
@@ -222,19 +221,17 @@ def get_v1_v2(beta, alpha, sen1, sen2, len_sen1, len_sen2, model, model_params):
     v1 = []
     for i in range(len_sen1):
         beta_i = beta[i]
-        con = sen1[i] + beta_i
-        G_x = dy.vecInput(G_INPUT_SIZE)
-        G_x.set(con)
-        G_i = (G_w2 * (dy.rectify(G_w1 * G_x + G_b1)) + G_b2)
+        con = dy.concatenate([sen1[i], beta_i])
+        G_x = con
+        G_i = (G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
         v1.append(G_i)
 
     v2 = []
     for j in range(len_sen2):
         alpha_j = alpha[j]
-        con = sen2[j] + alpha_j
-        G_x = dy.vecInput(G_INPUT_SIZE)
-        G_x.set(con)
-        G_i = (G_w2 * (dy.rectify(G_w1 * G_x + G_b1)) + G_b2)
+        con = dy.concatenate([sen2[j], alpha_j])
+        G_x = con
+        G_i = (G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
         v2.append(G_i)
 
     return v1, v2
@@ -255,30 +252,26 @@ def aggregate_v1_v2(v1, v2, model, model_params):
     H_b2 = model_params['H_b2']
 
     v1_esum = dy.esum(v1)
-    v1_sum = v1_esum.value()
-
     v2_esum = dy.esum(v2)
-    v2_sum = v2_esum.value()
 
-    con = v1_sum + v2_sum
+    con = dy.concatenate([v1_esum, v2_esum])
+    H_x = con
 
-    H_x = dy.vecInput(H_INPUT_SIZE)
-    H_x.set(con)
-
-    y_hat = dy.softmax(H_w2 * (dy.rectify(H_w1 * H_x + H_b1)) + H_b2)
+    y_hat = dy.softmax(H_w2 * (dy.rectify((H_w1 * H_x) + H_b1)) + H_b2)
 
     return y_hat
 
 
 
 def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
+    train_loss_val_list = []
+    train_acc_list = []
     for epoch_i in range(EPOCHS):
         shuffle(train_data)
         print("Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         correct = wrong = 0.0
         total_loss = 0
         for sample_i in range(len(train_data)):
-            #print sample_i
             dy.renew_cg()
             sample = train_data[sample_i]
             sen1_str, sen2_str, label = get_x_y(sample)
@@ -286,8 +279,6 @@ def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
             len_sen2 = len(sen2_str)
             sen1 = get_sen_from_dict(sen1_str, emb_data)
             sen2 = get_sen_from_dict(sen2_str, emb_data)
-            #y = dy.scalarInput(0)
-            #y.set(label)
 
             E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params)
             alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2)
@@ -309,10 +300,29 @@ def train_model(train_data, dev_data, emb_data, model, model_params, trainer):
             if sample_i % 100 == 0 and (sample_i > 0):
                 acc = (correct /(correct+wrong)) * 100
                 relative_total_loss = total_loss/sample_i
-                print("Epoch %d: Train iteration %d: total loss=%.4f loss=%.4f acc=%.2f%%" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
+                train_loss_val_list.append(relative_total_loss)
+                train_acc_list.append(acc/100)
+                print("Epoch %d: Train iteration %d: total-loss=%.4f loss=%.4f acc=%.2f%%" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
+
+    return train_loss_val_list, train_acc_list
 
 
+def make_ststistics(train_loss_val_list, train_acc_list):
+    plt_file_name = 'train_acc.png'
+    plt.plot(train_acc_list)
+    plt.xlabel('Iterations')
+    plt.ylabel('Accuracy')
+    plt.title('Training Accuracy')
+    plt.savefig(plt_file_name)
+    plt.close()
 
+    plt_file_name = 'train_loss.png'
+    plt.plot(train_loss_val_list)
+    plt.xlabel('Iterations')
+    plt.ylabel('Loss')
+    plt.title('Training Loss')
+    plt.savefig(plt_file_name)
+    plt.close()
 
 
 if __name__ == '__main__':
@@ -334,7 +344,8 @@ if __name__ == '__main__':
 
 
     model, model_params, trainer = init_model()
-    train_model(train_data, dev_data, emb_data, model, model_params, trainer)
+    train_loss_val_list, train_acc_list = train_model(train_data, dev_data, emb_data, model, model_params, trainer)
+    make_ststistics(train_loss_val_list, train_acc_list)
 
 
     pass
