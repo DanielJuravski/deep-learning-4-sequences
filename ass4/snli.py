@@ -332,7 +332,7 @@ def predict(data, emb_data, model, model_params):
 
     epoch_loss = total_loss / len(data)
     epoch_acc = correct / (correct+wrong)
-    print("Epoch %d: epoch-loss=%.4f acc=%.2f%%" % (epoch_i+1, epoch_loss, epoch_acc))
+    print("Dev Epoch %d: epoch-loss=%.4f acc=%.2f%%" % (epoch_i+1, epoch_loss, epoch_acc))
     return epoch_loss, epoch_acc
 
 
