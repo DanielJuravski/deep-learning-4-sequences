@@ -2,6 +2,7 @@ import json
 import numpy as np
 import datetime
 import fileinput
+import random
 
 
 ANNOTATOR_DICT = {}
@@ -9,7 +10,7 @@ ANNOTATOR_DICT['neutral'] = 0
 ANNOTATOR_DICT['contradiction'] = 1
 ANNOTATOR_DICT['entailment'] = 2
 
-NUM_OF_OOV_EMBEDDINGS = 100
+NUM_OF_OOV_EMBEDDINGS = 10
 LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
@@ -23,7 +24,7 @@ def loadSNLI_labeled_data(snli_file):
     with open(snli_file) as f:
         f_lines = f.readlines()
         for line_i in range(len(f_lines)):
-        # for line_i in range(1000):
+        #for line_i in range(4000,6000):
             line = f_lines[line_i]
             line_json_data = json.loads(line)
             annotator_str_label = str(line_json_data[u'annotator_labels'][0])
@@ -66,17 +67,17 @@ def get_emb_data(glove_emb_file):
     with open(glove_emb_file) as f:
         f_lines = f.readlines()
         for line_i in range(len(f_lines)):
-        # for line_i in range(1000):
+        #for line_i in range(101):
             line = f_lines[line_i]
             line_arr = line.split()
             word_str = line_arr[0]
-            word_vec = np.array([(float(x)) for x in line_arr[1:]])#.reshape(1,LEN_EMB_VECTOR)
+            word_vec = np.array([(float(x)) for x in line_arr[1:]])
             emb_dict[word_str] = word_vec
     # add to dict emb for oov words
     eps = np.sqrt(6) / np.sqrt(LEN_EMB_VECTOR + NUM_OF_OOV_EMBEDDINGS)
     for i in range(NUM_OF_OOV_EMBEDDINGS):
         word_str = OOV_EMBEDDING_STR + str(i)
-        emb_vec = np.random.uniform(-eps, eps, LEN_EMB_VECTOR)#.reshape(1,LEN_EMB_VECTOR)
+        emb_vec = np.random.uniform(-eps, eps, LEN_EMB_VECTOR)
         emb_dict[word_str] = emb_vec
 
     print "File " + glove_emb_file + " was loaded at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')

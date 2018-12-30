@@ -5,8 +5,12 @@ from random import randint
 from random import shuffle
 import datetime
 import sys
-import string
 import matplotlib.pyplot as plt
+import nltk
+nltk.download('wordnet')
+from nltk.stem.porter import PorterStemmer
+from nltk.stem.lancaster import LancasterStemmer
+from nltk.stem import WordNetLemmatizer
 
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
@@ -17,7 +21,7 @@ EPOCHS = 5
 LR = 0.001
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
-F_HIDDEN_SIZE = 200
+F_HIDDEN_SIZE = 250
 F_OUTPUT_SIZE = 200
 
 G_INPUT_SIZE = 2*LEN_EMB_VECTOR
@@ -97,17 +101,64 @@ def get_sen_from_dict(sen, emb_dict):
     return emb_sen
 
 
-def get_word_from_dict(word, emb_dict):
-    word = word.lower()
-    word = word[:-1] + word[-1:].translate(None, string.punctuation)
+def word_dash_found(word, emb_dict):
+    word_emb = False
+    if '-' in word:
+        words = word.split('-')
+        for word in words:
+            if emb_dict.has_key(word):
+                word_emb = emb_dict[word]
+                break
 
+    return word_emb
+
+
+
+def get_word_from_dict(word, emb_dict):
+    original_word = word
     if emb_dict.has_key(word):
         word_emb = emb_dict[word]
     else:
-        randoov = randint(0, NUM_OF_OOV_EMBEDDINGS-1)
-        rand_word = OOV_EMBEDDING_STR + str(randoov)
-        word_emb = emb_dict[rand_word]
-        #print "not in dict: " + word
+        # lowercase word
+        word = word.lower()
+        if emb_dict.has_key(word):
+            word_emb = emb_dict[word]
+        else:
+            # remove any punctuation (except '-')
+            tuned_word = ''.join(letter for letter in word if letter.isalpha() or letter == '-')
+            if emb_dict.has_key(word):
+                word_emb = emb_dict[word]
+            else:
+                # get first word of by '-' split
+                retuned_word_emb = word_dash_found(word, emb_dict)
+                if retuned_word_emb is not False:
+                    word_emb = retuned_word_emb
+                else:
+                    porter = PorterStemmer()
+                    word = str(porter.stem(tuned_word))
+                    if emb_dict.has_key(word):
+                        word_emb = emb_dict[word]
+                        #print "PORTER"
+                    else:
+                        lancaster_stemmer = LancasterStemmer()
+                        word = lancaster_stemmer.stem(tuned_word)
+                        if emb_dict.has_key(word):
+                            word_emb = emb_dict[word]
+                            #print "STEMMER"
+                        else:
+                            wordnet_lemmatizer = WordNetLemmatizer()
+                            word = wordnet_lemmatizer.lemmatize(tuned_word)
+                            if emb_dict.has_key(word):
+                                word_emb = emb_dict[word]
+                                #print "LEMMA"
+                            else:
+                                randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
+                                rand_word = OOV_EMBEDDING_STR + str(randoov)
+                                word_emb = emb_dict[rand_word]
+                                if word == " " or word == "":
+                                    print "not in dict: " + word + "ORIGINAL WORD: " + original_word
+                                else:
+                                    print "not in dict: " + word
 
     word_dy_exp = dy.inputTensor(word_emb)
     return word_dy_exp
@@ -260,7 +311,6 @@ def aggregate_v1_v2(v1, v2, model, model_params):
     return y_hat
 
 
-
 def train_model(train_data, emb_data, model, model_params, trainer):
     train_100_loss_val_list =[]
     train_100_acc_list = []
@@ -299,9 +349,10 @@ def train_model(train_data, emb_data, model, model_params, trainer):
             train_100_acc_list.append(acc/100)
             print("Epoch %d: Train iteration %d: total-loss=%.4f loss=%.4f acc=%.2f%%" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
 
-    epoch_loss =  sum(train_100_loss_val_list) / len(train_100_loss_val_list)
+    epoch_loss = sum(train_100_loss_val_list) / len(train_100_loss_val_list)
     epoch_acc = sum(train_100_acc_list) / len(train_100_acc_list)
     return epoch_loss, epoch_acc, train_100_loss_val_list, train_100_acc_list
+
 
 def predict(data, emb_data, model, model_params):
     correct = wrong = 0.0
@@ -332,7 +383,8 @@ def predict(data, emb_data, model, model_params):
 
     epoch_loss = total_loss / len(data)
     epoch_acc = correct / (correct+wrong)
-    print("Dev Epoch %d: epoch-loss=%.4f acc=%.2f%%" % (epoch_i+1, epoch_loss, epoch_acc))
+
+    print("====Epoch %d: Dev epoch-loss=%.4f acc=%.2f%%====" % (epoch_i+1, epoch_loss, epoch_acc*100))
     return epoch_loss, epoch_acc
 
 
@@ -355,9 +407,10 @@ def make_ststistics(loss_val_list, acc_list, prefix):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         snli_train_file = sys.argv[1]
-        glove_emb_file = sys.argv[2]
+        snli_dev_file = sys.argv[2]
+        glove_emb_file = sys.argv[3]
     else:
         snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
         snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
@@ -369,7 +422,6 @@ if __name__ == '__main__':
     dev_data = load_data.loadSNLI_labeled_data(snli_dev_file)
     #test_data = load_data.loadSNLI_labeled_data(snli_test_file)
     emb_data = load_data.get_emb_data(glove_emb_file)
-
 
     model, model_params, trainer = init_model()
     train_itreations_loss_val_list = []
@@ -387,7 +439,6 @@ if __name__ == '__main__':
         train_acc_list.append(train_acc)
         train_itreations_loss_val_list += i_loss
         train_iterations_acc_list += i_acc
-        shuffle(dev_data)
         print("Dev Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         dev_loss_val, dev_acc = predict(dev_data, emb_data, model, model_params)
         dev_loss_val_list.append(dev_loss_val)
@@ -396,8 +447,5 @@ if __name__ == '__main__':
     make_ststistics(train_itreations_loss_val_list, train_iterations_acc_list, "train_by_iteration")
     make_ststistics(train_loss_val_list, train_acc_list, "train_by_epoch")
     make_ststistics(dev_loss_val_list, dev_acc_list, "dev_by_epoch")
-    print("finished at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print("Finished at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
-
-
-pass
