@@ -17,8 +17,9 @@ LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 5
-LR = 0.001
+EPOCHS = 10
+LR = 0.003
+DROPOUT_RATE = 0.2
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
 F_HIDDEN_SIZE = 250
@@ -42,10 +43,12 @@ def init_model():
     # F feed-forward
     eps = np.sqrt(6) / np.sqrt(F_INPUT_SIZE + F_HIDDEN_SIZE)
     F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE),init='uniform', scale=eps)
-    F_b1 = model.add_parameters((F_HIDDEN_SIZE))
+    eps = np.sqrt(6) / np.sqrt(F_HIDDEN_SIZE)
+    F_b1 = model.add_parameters((F_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE + F_HIDDEN_SIZE)
     F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE),init='uniform', scale=eps)
-    F_b2 = model.add_parameters((F_OUTPUT_SIZE))
+    eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE)
+    F_b2 = model.add_parameters((F_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['F_w1'] = F_w1
     model_params['F_b1'] = F_b1
@@ -54,11 +57,13 @@ def init_model():
 
     # G feed-forward
     eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE + G_INPUT_SIZE)
-    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE),init='uniform', scale=eps)
-    G_b1 = model.add_parameters((G_HIDDEN_SIZE))
+    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE), init='uniform', scale=eps)
+    eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE)
+    G_b1 = model.add_parameters((G_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE + G_HIDDEN_SIZE)
-    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE),init='uniform', scale=eps)
-    G_b2 = model.add_parameters((G_OUTPUT_SIZE))
+    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE), init='uniform', scale=eps)
+    eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE)
+    G_b2 = model.add_parameters((G_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['G_w1'] = G_w1
     model_params['G_b1'] = G_b1
@@ -67,11 +72,13 @@ def init_model():
 
     # H feed-forward
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE + H_INPUT_SIZE)
-    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE),init='uniform', scale=eps)
-    H_b1 = model.add_parameters((H_HIDDEN_SIZE))
+    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE), init='uniform', scale=eps)
+    eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
+    H_b1 = model.add_parameters((H_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_OUTPUT_SIZE + H_HIDDEN_SIZE)
-    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE),init='uniform', scale=eps)
-    H_b2 = model.add_parameters((H_OUTPUT_SIZE))
+    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE), init='uniform', scale=eps)
+    eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
+    H_b2 = model.add_parameters((H_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['H_w1'] = H_w1
     model_params['H_b1'] = H_b1
@@ -126,8 +133,8 @@ def get_word_from_dict(word, emb_dict):
         else:
             # remove any punctuation (except '-')
             tuned_word = ''.join(letter for letter in word if letter.isalpha() or letter == '-')
-            if emb_dict.has_key(word):
-                word_emb = emb_dict[word]
+            if emb_dict.has_key(tuned_word):
+                word_emb = emb_dict[tuned_word]
             else:
                 # get first word of by '-' split
                 retuned_word_emb = word_dash_found(word, emb_dict)
@@ -184,12 +191,14 @@ def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params):
 
     F_sen1 = []
     for i in range(len_sen1):
-        F_i = dy.rectify(F_w2 * (dy.rectify((F_w1*sen1[i]) + F_b1)) + F_b2)
+        x = dy.dropout(sen1[i], DROPOUT_RATE)
+        F_i = dy.rectify(F_w2 * (dy.rectify((F_w1*x) + F_b1)) + F_b2)
         F_sen1.append(F_i)
 
     F_sen2 = []
     for j in range(len_sen2):
-        F_j = dy.rectify(F_w2 * (dy.rectify((F_w1*sen2[j]) + F_b1)) + F_b2)
+        x = dy.dropout(sen2[j], DROPOUT_RATE)
+        F_j = dy.rectify(F_w2 * (dy.rectify((F_w1*x) + F_b1)) + F_b2)
         F_sen2.append(F_j)
 
     for i in range(len_sen1):
@@ -271,7 +280,7 @@ def get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params):
     for i in range(len_sen1):
         beta_i = beta[i]
         con = dy.concatenate([sen1[i], beta_i])
-        G_x = con
+        G_x = dy.dropout(con, DROPOUT_RATE)
         G_i = dy.rectify(G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
         v1.append(G_i)
 
@@ -279,7 +288,7 @@ def get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params):
     for j in range(len_sen2):
         alpha_j = alpha[j]
         con = dy.concatenate([sen2[j], alpha_j])
-        G_x = con
+        G_x = dy.dropout(con, DROPOUT_RATE)
         G_i = dy.rectify(G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
         v2.append(G_i)
 
@@ -304,7 +313,7 @@ def aggregate_v1_v2(v1, v2, model, model_params):
     v2_esum = dy.esum(v2)
 
     con = dy.concatenate([v1_esum, v2_esum])
-    H_x = con
+    H_x = dy.dropout(con, DROPOUT_RATE)
 
     y_hat = dy.softmax(H_w2 * (dy.rectify((H_w1 * H_x) + H_b1)) + H_b2)
 
@@ -351,7 +360,8 @@ def train_model(train_data, emb_data, model, model_params, trainer):
 
     epoch_loss = sum(train_100_loss_val_list) / len(train_100_loss_val_list)
     epoch_acc = sum(train_100_acc_list) / len(train_100_acc_list)
-    return epoch_loss, epoch_acc, train_100_loss_val_list, train_100_acc_list
+
+    return model, model_params, epoch_loss, epoch_acc, train_100_loss_val_list, train_100_acc_list
 
 
 def predict(data, emb_data, model, model_params):
@@ -434,7 +444,7 @@ if __name__ == '__main__':
     for epoch_i in range(EPOCHS):
         shuffle(train_data)
         print("Train Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        train_loss_val, train_acc, i_loss, i_acc = train_model(train_data, emb_data, model, model_params, trainer)
+        model, model_params, train_loss_val, train_acc, i_loss, i_acc = train_model(train_data, emb_data, model, model_params, trainer)
         train_loss_val_list.append(train_loss_val)
         train_acc_list.append(train_acc)
         train_itreations_loss_val_list += i_loss
