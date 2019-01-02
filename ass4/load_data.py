@@ -10,11 +10,11 @@ ANNOTATOR_DICT['neutral'] = 0
 ANNOTATOR_DICT['contradiction'] = 1
 ANNOTATOR_DICT['entailment'] = 2
 
-NUM_OF_OOV_EMBEDDINGS = 10
+NUM_OF_OOV_EMBEDDINGS = 50
 LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
-def loadSNLI_labeled_data(snli_file):
+def loadSNLI_labeled_data(snli_file, data_type='not train'):
     """
     load snli labeled data from file, filter '-' annotators
     :param snli_file: train or dev files
@@ -23,8 +23,12 @@ def loadSNLI_labeled_data(snli_file):
     data = []
     with open(snli_file) as f:
         f_lines = f.readlines()
-        for line_i in range(len(f_lines)):
-        #for line_i in range(5800,6000):
+        if data_type == 'train':
+            smaple_range = 201
+        else:
+            smaple_range = len(f_lines)
+
+        for line_i in range(smaple_range):
             line = f_lines[line_i]
             line_json_data = json.loads(line)
             annotator_str_label = str(line_json_data[u'annotator_labels'][0])

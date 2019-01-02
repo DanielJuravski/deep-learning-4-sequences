@@ -7,7 +7,7 @@ import datetime
 import sys
 import matplotlib.pyplot as plt
 import nltk
-nltk.download('wordnet')
+nltk.data.path.append("data/")
 from nltk.stem.porter import PorterStemmer
 from nltk.stem.lancaster import LancasterStemmer
 from nltk.stem import WordNetLemmatizer
@@ -17,8 +17,8 @@ LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 10
-LR = 0.003
+EPOCHS = 100
+LR = 0.001
 DROPOUT_RATE = 0.2
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
@@ -102,8 +102,13 @@ def get_x_y(sample):
 def get_sen_from_dict(sen, emb_dict):
     emb_sen = []
     for word in sen:
-        emb_word = get_word_from_dict(word, emb_dict)
-        emb_sen.append(emb_word)
+        if '-' in word:
+            word = word.split('-')
+        else:
+            word = [word]
+        for word_i in word:
+            emb_word = get_word_from_dict(word_i, emb_dict)
+            emb_sen.append(emb_word)
 
     return emb_sen
 
@@ -120,7 +125,6 @@ def word_dash_found(word, emb_dict):
     return word_emb
 
 
-
 def get_word_from_dict(word, emb_dict):
     original_word = word
     if emb_dict.has_key(word):
@@ -131,41 +135,36 @@ def get_word_from_dict(word, emb_dict):
         if emb_dict.has_key(word):
             word_emb = emb_dict[word]
         else:
-            # remove any punctuation (except '-')
-            tuned_word = ''.join(letter for letter in word if letter.isalpha() or letter == '-')
+            # remove any punctuation
+            tuned_word = ''.join(letter for letter in word if letter.isalpha())
             if emb_dict.has_key(tuned_word):
                 word_emb = emb_dict[tuned_word]
             else:
-                # get first word of by '-' split
-                retuned_word_emb = word_dash_found(word, emb_dict)
-                if retuned_word_emb is not False:
-                    word_emb = retuned_word_emb
+                wordnet_lemmatizer = WordNetLemmatizer()
+                word = wordnet_lemmatizer.lemmatize(tuned_word)
+                if emb_dict.has_key(word):
+                    word_emb = emb_dict[word]
+                    print "LEMMA"
                 else:
-                    porter = PorterStemmer()
-                    word = str(porter.stem(tuned_word))
+                    lancaster_stemmer = LancasterStemmer()
+                    word = lancaster_stemmer.stem(tuned_word)
                     if emb_dict.has_key(word):
                         word_emb = emb_dict[word]
-                        #print "PORTER"
+                        print "STEMMER"
                     else:
-                        lancaster_stemmer = LancasterStemmer()
-                        word = lancaster_stemmer.stem(tuned_word)
+                        porter = PorterStemmer()
+                        word = str(porter.stem(tuned_word))
                         if emb_dict.has_key(word):
                             word_emb = emb_dict[word]
-                            #print "STEMMER"
+                            print "PORTER"
                         else:
-                            wordnet_lemmatizer = WordNetLemmatizer()
-                            word = wordnet_lemmatizer.lemmatize(tuned_word)
-                            if emb_dict.has_key(word):
-                                word_emb = emb_dict[word]
-                                #print "LEMMA"
+                            randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
+                            rand_word = OOV_EMBEDDING_STR + str(randoov)
+                            word_emb = emb_dict[rand_word]
+                            if word == " " or word == "":
+                                print "not in dict: " + word + "ORIGINAL WORD: " + original_word
                             else:
-                                randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
-                                rand_word = OOV_EMBEDDING_STR + str(randoov)
-                                word_emb = emb_dict[rand_word]
-                                if word == " " or word == "":
-                                    print "not in dict: " + word + "ORIGINAL WORD: " + original_word
-                                else:
-                                    print "not in dict: " + word
+                                print "not in dict: " + word
 
     word_dy_exp = dy.inputTensor(word_emb)
     return word_dy_exp
@@ -364,12 +363,12 @@ def train_model(train_data, emb_data, model, model_params, trainer):
     return model, model_params, epoch_loss, epoch_acc, train_100_loss_val_list, train_100_acc_list
 
 
-def predict(data, emb_data, model, model_params):
+def predict(data, emb_data, model, model_params, data_type):
     correct = wrong = 0.0
     total_loss = 0
     for sample_i in range(len(data)):
         dy.renew_cg()
-        sample = train_data[sample_i]
+        sample = data[sample_i]
         sen1_str, sen2_str, label = get_x_y(sample)
         len_sen1 = len(sen1_str)
         len_sen2 = len(sen2_str)
@@ -394,7 +393,11 @@ def predict(data, emb_data, model, model_params):
     epoch_loss = total_loss / len(data)
     epoch_acc = correct / (correct+wrong)
 
-    print("====Epoch %d: Dev epoch-loss=%.4f acc=%.2f%%====" % (epoch_i+1, epoch_loss, epoch_acc*100))
+    if data_type == 'dev':
+        print("====Epoch %d: Dev epoch-loss=%.4f acc=%.2f%%====" % (epoch_i+1, epoch_loss, epoch_acc*100))
+    else:
+        print("====Test total-loss=%.4f acc=%.2f%%====" % (epoch_loss, epoch_acc*100))
+
     return epoch_loss, epoch_acc
 
 
@@ -420,7 +423,8 @@ if __name__ == '__main__':
     if len(sys.argv) > 3:
         snli_train_file = sys.argv[1]
         snli_dev_file = sys.argv[2]
-        glove_emb_file = sys.argv[3]
+        snli_test_file = sys.argv[3]
+        glove_emb_file = sys.argv[4]
     else:
         snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
         snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
@@ -428,9 +432,9 @@ if __name__ == '__main__':
 
         glove_emb_file = 'data/glove/glove.6B.300d.txt'
 
-    train_data = load_data.loadSNLI_labeled_data(snli_train_file)
-    dev_data = load_data.loadSNLI_labeled_data(snli_dev_file)
-    #test_data = load_data.loadSNLI_labeled_data(snli_test_file)
+    train_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
+    dev_data = load_data.loadSNLI_labeled_data(snli_dev_file)  # REMOVE
+    test_data = load_data.loadSNLI_labeled_data(snli_test_file)  # REMOVE
     emb_data = load_data.get_emb_data(glove_emb_file)
 
     model, model_params, trainer = init_model()
@@ -450,9 +454,12 @@ if __name__ == '__main__':
         train_itreations_loss_val_list += i_loss
         train_iterations_acc_list += i_acc
         print("Dev Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        dev_loss_val, dev_acc = predict(dev_data, emb_data, model, model_params)
+        dev_loss_val, dev_acc = predict(dev_data, emb_data, model, model_params, 'dev')
         dev_loss_val_list.append(dev_loss_val)
         dev_acc_list.append(dev_acc)
+
+    print("Test started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    test_loss_val, test_acc = predict(test_data, emb_data, model, model_params, 'test')
 
     make_ststistics(train_itreations_loss_val_list, train_iterations_acc_list, "train_by_iteration")
     make_ststistics(train_loss_val_list, train_acc_list, "train_by_epoch")
