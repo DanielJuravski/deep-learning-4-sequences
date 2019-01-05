@@ -8,21 +8,16 @@ import datetime
 import sys
 import matplotlib.pyplot as plt
 import nltk
-nltk.data.path.append("data/")
 from nltk.stem.porter import PorterStemmer
 from nltk.stem.lancaster import LancasterStemmer
 from nltk.stem import WordNetLemmatizer
 from sklearn.utils import shuffle
-import copy
-from load_data import Vocab
-from itertools import chain
-
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 1
+EPOCHS = 30
 LR = 0.001
 DROPOUT_RATE = 0.2
 BATCH_SIZE = 16
@@ -41,7 +36,7 @@ H_OUTPUT_SIZE = 3
 
 
 
-def init_model(len_of_train_vocab):
+def init_model(emb_dict, emb):
     model = dy.ParameterCollection()
     #trainer = dy.AdagradTrainer(model, learning_rate=LR)
     trainer = dy.AdamTrainer(model, alpha=LR)
@@ -93,9 +88,11 @@ def init_model(len_of_train_vocab):
     model_params['H_w2'] = H_w2
     model_params['H_b2'] = H_b2
 
-    EMBEDDING_MATRIX = model.add_lookup_parameters((len_of_train_vocab, 300))
-    model_params['E'] = EMBEDDING_MATRIX
+    len_of_emb = len(emb_dict)
+    E = model.add_lookup_parameters((len_of_emb, 300))
+    E.init_from_array(np.array(emb))
 
+    model_params['E'] = E
 
     return model, model_params, trainer
 
@@ -137,56 +134,14 @@ def word_dash_found(word, emb_dict):
     return word_emb
 
 
-def get_word_from_dict(word, emb_dict):
-    original_word = word
-    if emb_dict.has_key(word):
-        word_emb = emb_dict[word]
-    else:
-        # lowercase word
-        word = word.lower()
-        if emb_dict.has_key(word):
-            word_emb = emb_dict[word]
-        else:
-            # remove any punctuation
-            tuned_word = ''.join(letter for letter in word if letter.isalpha())
-            if emb_dict.has_key(tuned_word):
-                word_emb = emb_dict[tuned_word]
-            else:
-                wordnet_lemmatizer = WordNetLemmatizer()
-                word = wordnet_lemmatizer.lemmatize(tuned_word)
-                if emb_dict.has_key(word):
-                    word_emb = emb_dict[word]
-                    print "LEMMA"
-                else:
-                    lancaster_stemmer = LancasterStemmer()
-                    word = lancaster_stemmer.stem(tuned_word)
-                    if emb_dict.has_key(word):
-                        word_emb = emb_dict[word]
-                        print "STEMMER"
-                    else:
-                        porter = PorterStemmer()
-                        word = str(porter.stem(tuned_word))
-                        if emb_dict.has_key(word):
-                            word_emb = emb_dict[word]
-                            print "PORTER"
-                        else:
-                            randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
-                            rand_word = OOV_EMBEDDING_STR + str(randoov)
-                            word_emb = emb_dict[rand_word]
-                            if word == " " or word == "":
-                                print "not in dict: " + word + "ORIGINAL WORD: " + original_word
-                            else:
-                                print "not in dict: " + word
-
-    word_dy_exp = dy.inputTensor(word_emb)
-    return word_dy_exp
-
-
 def set_E_matrix(sen1, sen2, model_params):
     F_w1 = model_params['F_w1']
     F_b1 = model_params['F_b1']
     F_w2 = model_params['F_w2']
     F_b2 = model_params['F_b2']
+
+    #sen1 = dy.dropout(sen1, DROPOUT_RATE)
+    #sen2 = dy.dropout(sen2, DROPOUT_RATE)
 
     F_sen1 = dy.rectify(F_w2 * (dy.rectify(dy.colwise_add(F_w1*sen1, F_b1))) + F_b2)
     F_sen2 = dy.rectify(F_w2 * (dy.rectify(dy.colwise_add(F_w1*sen2, F_b1))) + F_b2)
@@ -213,9 +168,11 @@ def get_v1_v2(alpha, beta, sen1, sen2, model_params):
     G_b2 = model_params['G_b2']
 
     con = dy.concatenate([sen1, beta], d=0)
+    #con = dy.dropout(con, DROPOUT_RATE)
     v1 = dy.rectify(G_w2 * (dy.rectify(dy.colwise_add(G_w1 * con, G_b1))) + G_b2)
 
     con = dy.concatenate([sen2, alpha], d=0)
+    #con = dy.dropout(con, DROPOUT_RATE)
     v2 = dy.rectify(G_w2 * (dy.rectify(dy.colwise_add(G_w1 * con, G_b1))) + G_b2)
 
     return v1, v2
@@ -231,16 +188,60 @@ def aggregate_v1_v2(v1, v2, model_params):
     v2_sum = dy.sum_dim(v2, [1])
 
     con = dy.concatenate([v1_sum, v2_sum])
-    #H_x = dy.dropout(con, DROPOUT_RATE)
+    #con = dy.dropout(con, DROPOUT_RATE)
 
     y_hat = dy.softmax(H_w2 * (dy.rectify((H_w1 * con) + H_b1)) + H_b2)
 
     return y_hat
 
 
+def get_emb_i(word):
+    original_word = word
+    if emb_dict.has_key(word):
+        w_i = emb_dict[word]
+    else:
+        # lowercase word
+        word = word.lower()
+        if emb_dict.has_key(word):
+            w_i = emb_dict[word]
+        else:
+            # remove any punctuation
+            tuned_word = ''.join(letter for letter in word if letter.isalpha())
+            if emb_dict.has_key(tuned_word):
+                w_i = emb_dict[tuned_word]
+            else:
+                wordnet_lemmatizer = WordNetLemmatizer()
+                word = wordnet_lemmatizer.lemmatize(tuned_word)
+                if emb_dict.has_key(word):
+                    w_i = emb_dict[word]
+                    #print "LEMMA"
+                else:
+                    lancaster_stemmer = LancasterStemmer()
+                    word = lancaster_stemmer.stem(tuned_word)
+                    if emb_dict.has_key(word):
+                        w_i = emb_dict[word]
+                        #print "STEMMER"
+                    else:
+                        porter = PorterStemmer()
+                        word = str(porter.stem(tuned_word))
+                        if emb_dict.has_key(word):
+                            w_i = emb_dict[word]
+                            #print "PORTER"
+                        else:
+                            randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
+                            rand_word = OOV_EMBEDDING_STR + str(randoov)
+                            w_i = emb_dict[rand_word]
+                            # if word == " " or word == "":
+                            #     print "not in dict: " + word + "ORIGINAL WORD: " + original_word
+                            # else:
+                            #     print "not in dict: " + word
+
+    return w_i
+
+
 def embed(sentence, model, model_params, trainer):
     E = model_params['E']
-    sentence_embedded = [E[vocab[w]] for w in sentence.split()]
+    sentence_embedded = [dy.lookup(E, get_emb_i(w), update=False) for w in sentence.split()]
     sentence_embedded = dy.concatenate(sentence_embedded, d=1)
     return sentence_embedded
 
@@ -274,9 +275,9 @@ def train_model(train_data, model, model_params, trainer, dev_data):
     while shift < len_of_train_data:
         losses = []
         dy.renew_cg()
-        sen1_batch = train_src_data[shift:shift+BATCH_SIZE]
-        sen2_batch = train_target_data[shift:shift + BATCH_SIZE]
-        label_batch = train_label_data[shift:shift + BATCH_SIZE]
+        sen1_batch = train_src_data[shift: shift+BATCH_SIZE]
+        sen2_batch = train_target_data[shift: shift+BATCH_SIZE]
+        label_batch = train_label_data[shift: shift+BATCH_SIZE]
 
         for sen1, sen2, label in zip(sen1_batch, sen2_batch, label_batch):
             y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
@@ -303,7 +304,7 @@ def train_model(train_data, model, model_params, trainer, dev_data):
             train_loss_list.append(loss_val)
             print("Epoch %d: Train iteration %d/%d: loss=%.4f acc=%.2f%%" % (epoch_i+1, shift, len_of_train_data, loss_val, acc))
 
-        if i % (500 // BATCH_SIZE) == 0:
+        if i % (10000 // BATCH_SIZE) == 0:
             dev_loss = 0
             dev_correct = dev_wrong = 0.0
             len_dev_data = len(dev_src_data)
@@ -376,28 +377,26 @@ def predict_test(test_data, model, model_params, trainer):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 3:
+    if len(sys.argv) > 4:
         snli_train_file = sys.argv[1]
         snli_dev_file = sys.argv[2]
         snli_test_file = sys.argv[3]
         glove_emb_file = sys.argv[4]
+        nltk_data = sys.argv[5]
     else:
         snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
         snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
         snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
-
         glove_emb_file = 'data/glove/glove.6B.300d.txt'
+        nltk_data = "data/nltk_data"
 
-    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
-    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file, data_type='train')
-    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file, data_type='train')
-    raw_data = chain(train_src_data, train_target_data)
-    vocab = Vocab(raw_data)
-    len_of_train_vocab = len(vocab)
-    print "len vocab is: " + str(len_of_train_vocab)
-    emb_data = load_data.get_emb_data(glove_emb_file)
+    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file)
+    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file)
+    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file)
+    emb_dict, emb = load_data.get_emb_data(glove_emb_file)
+    nltk.data.path.append(nltk_data)
 
-    model, model_params, trainer = init_model(len_of_train_vocab)
+    model, model_params, trainer = init_model(emb_dict, emb)
 
     train_acc_list = []
     train_loss_list = []

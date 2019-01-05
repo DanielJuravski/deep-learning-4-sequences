@@ -11,7 +11,7 @@ ANNOTATOR_DICT['neutral'] = 0
 ANNOTATOR_DICT['contradiction'] = 1
 ANNOTATOR_DICT['entailment'] = 2
 
-NUM_OF_OOV_EMBEDDINGS = 50
+NUM_OF_OOV_EMBEDDINGS = 2
 LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
@@ -21,7 +21,7 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
     :param snli_file: train or dev files
     :return: array of tuples of data, each array var is a tuple of (sen1[str], sen2[str], label[int])
     """
-    print "File " + snli_file + " started loading at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print "File " + snli_file + " started loading at: " + datetime.datetime.now().strftime('%H:%M:%S')
 
     sen1_data = []
     sen2_data = []
@@ -33,7 +33,6 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
             smaple_range = 1501
         else:
             smaple_range = len(f_lines)
-
         for line_i in range(smaple_range):
             line = f_lines[line_i]
             line_json_data = json.loads(line)
@@ -45,6 +44,7 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
                 sen1_data.append(sen1)
                 sen2_data.append(sen2)
                 label_data.append(annotator_label)
+    print "File " + snli_file + " done loading at: " + datetime.datetime.now().strftime('%H:%M:%S')
 
     return sen1_data, sen2_data, label_data
 
@@ -56,59 +56,31 @@ def get_emb_data(glove_emb_file):
     :return: dict where key is word, val is [300,1] ndarray word embedding
     """
     emb_dict = {}
+    dict_i = 0
+    emb = []
+    print "File " + glove_emb_file + " started loading at: " + datetime.datetime.now().strftime('%H:%M:%S')
+
     with open(glove_emb_file) as f:
         f_lines = f.readlines()
-        #for line_i in range(len(f_lines)):
-        for line_i in range(101):
+        for line_i in range(len(f_lines)):
+        #for line_i in range(200000):
             line = f_lines[line_i]
             line_arr = line.split()
             word_str = line_arr[0]
             word_vec = np.array([(float(x)) for x in line_arr[1:]])
-            emb_dict[word_str] = word_vec
+            emb.append(word_vec)
+            emb_dict[word_str] = dict_i
+            dict_i+=1
     # add to dict emb for oov words
     eps = np.sqrt(6) / np.sqrt(LEN_EMB_VECTOR + NUM_OF_OOV_EMBEDDINGS)
     for i in range(NUM_OF_OOV_EMBEDDINGS):
         word_str = OOV_EMBEDDING_STR + str(i)
         emb_vec = np.random.uniform(-eps, eps, LEN_EMB_VECTOR)
-        emb_dict[word_str] = emb_vec
+        emb.append(emb_vec)
+        emb_dict[word_str] = dict_i
+        dict_i += 1
 
-    print "File " + glove_emb_file + " was loaded at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    return emb_dict
+    print "File " + glove_emb_file + " done loading at: " + datetime.datetime.now().strftime('%H:%M:%S')
 
+    return emb_dict, emb
 
-class Vocab:
-    def __init__(self, corpuses, label=False):
-        self.counts = Counter()
-        if not label:
-            for corpus in corpuses:
-                for word in corpus.split():
-                    self.counts[word] += 1
-        else:
-            for word in corpuses:
-                self.counts[word] += 1
-        self.word_to_idx = {w: i for i, (w, _) in enumerate(self.counts.most_common())}
-        if not label:
-            self.word_to_idx['<UNK>'] = len(self.word_to_idx)
-
-    def __len__(self):
-        return len(self.word_to_idx)
-
-    def __getitem__(self, word):
-        if word in self.word_to_idx:
-            return self.word_to_idx[word]
-        else:
-            return self.word_to_idx['<UNK>']
-
-if __name__ == '__main__':
-    # snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
-    # snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
-    # snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
-
-    # train_data = loadSNLI_labeled_data(snli_train_file)
-    # dev_data = loadSNLI_labeled_data(snli_dev_file)
-    # test_data = loadSNLI_unlabeled_data(snli_test_file)
-
-    glove_emb_file = 'data/glove/glove.6B.300d.txt'
-    emb_data = get_emb_data(glove_emb_file)
-
-    pass
