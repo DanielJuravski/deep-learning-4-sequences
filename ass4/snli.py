@@ -1,8 +1,9 @@
 import load_data
 import dynet as dy
+import dynet_config
+dynet_config.set(autobatch=1)
 import numpy as np
 from random import randint
-from random import shuffle
 import datetime
 import sys
 import matplotlib.pyplot as plt
@@ -11,21 +12,26 @@ nltk.data.path.append("data/")
 from nltk.stem.porter import PorterStemmer
 from nltk.stem.lancaster import LancasterStemmer
 from nltk.stem import WordNetLemmatizer
+from sklearn.utils import shuffle
+import copy
+from load_data import Vocab
+from itertools import chain
 
 
 LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 100
+EPOCHS = 1
 LR = 0.001
 DROPOUT_RATE = 0.2
+BATCH_SIZE = 16
 
 F_INPUT_SIZE = LEN_EMB_VECTOR
-F_HIDDEN_SIZE = 250
+F_HIDDEN_SIZE = 200
 F_OUTPUT_SIZE = 200
 
-G_INPUT_SIZE = 2*LEN_EMB_VECTOR
+G_INPUT_SIZE = 2*F_OUTPUT_SIZE
 G_HIDDEN_SIZE = 200
 G_OUTPUT_SIZE = 200
 
@@ -35,20 +41,22 @@ H_OUTPUT_SIZE = 3
 
 
 
-def init_model():
+def init_model(len_of_train_vocab):
     model = dy.ParameterCollection()
-    trainer = dy.AdagradTrainer(model, learning_rate=LR)
+    #trainer = dy.AdagradTrainer(model, learning_rate=LR)
+    trainer = dy.AdamTrainer(model, alpha=LR)
+
     model_params = {}
 
     # F feed-forward
     eps = np.sqrt(6) / np.sqrt(F_INPUT_SIZE + F_HIDDEN_SIZE)
-    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE),init='uniform', scale=eps)
+    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE))#,init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_HIDDEN_SIZE)
-    F_b1 = model.add_parameters((F_HIDDEN_SIZE), init='uniform', scale=eps)
+    F_b1 = model.add_parameters((F_HIDDEN_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE + F_HIDDEN_SIZE)
-    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE),init='uniform', scale=eps)
+    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE))#,init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE)
-    F_b2 = model.add_parameters((F_OUTPUT_SIZE), init='uniform', scale=eps)
+    F_b2 = model.add_parameters((F_OUTPUT_SIZE))#, init='uniform', scale=eps)
 
     model_params['F_w1'] = F_w1
     model_params['F_b1'] = F_b1
@@ -57,13 +65,13 @@ def init_model():
 
     # G feed-forward
     eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE + G_INPUT_SIZE)
-    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE), init='uniform', scale=eps)
+    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE)
-    G_b1 = model.add_parameters((G_HIDDEN_SIZE), init='uniform', scale=eps)
+    G_b1 = model.add_parameters((G_HIDDEN_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE + G_HIDDEN_SIZE)
-    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE), init='uniform', scale=eps)
+    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE)
-    G_b2 = model.add_parameters((G_OUTPUT_SIZE), init='uniform', scale=eps)
+    G_b2 = model.add_parameters((G_OUTPUT_SIZE))#, init='uniform', scale=eps)
 
     model_params['G_w1'] = G_w1
     model_params['G_b1'] = G_b1
@@ -72,18 +80,22 @@ def init_model():
 
     # H feed-forward
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE + H_INPUT_SIZE)
-    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE), init='uniform', scale=eps)
+    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
-    H_b1 = model.add_parameters((H_HIDDEN_SIZE), init='uniform', scale=eps)
+    H_b1 = model.add_parameters((H_HIDDEN_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_OUTPUT_SIZE + H_HIDDEN_SIZE)
-    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE), init='uniform', scale=eps)
+    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE))#, init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
-    H_b2 = model.add_parameters((H_OUTPUT_SIZE), init='uniform', scale=eps)
+    H_b2 = model.add_parameters((H_OUTPUT_SIZE))#, init='uniform', scale=eps)
 
     model_params['H_w1'] = H_w1
     model_params['H_b1'] = H_b1
     model_params['H_w2'] = H_w2
     model_params['H_b2'] = H_b2
+
+    EMBEDDING_MATRIX = model.add_lookup_parameters((len_of_train_vocab, 300))
+    model_params['E'] = EMBEDDING_MATRIX
+
 
     return model, model_params, trainer
 
@@ -170,243 +182,166 @@ def get_word_from_dict(word, emb_dict):
     return word_dy_exp
 
 
-def set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params):
-    """
-
-    :param sen1: str
-    :param sen2: str
-    :param len_sen1: int
-    :param len_sen2: int
-    :param model:
-    :param model_params:
-    :param emb_data:
-    :return: matrix of np.zeroes
-    """
-    E_matrix = []
+def set_E_matrix(sen1, sen2, model_params):
     F_w1 = model_params['F_w1']
     F_b1 = model_params['F_b1']
     F_w2 = model_params['F_w2']
     F_b2 = model_params['F_b2']
 
-    F_sen1 = []
-    for i in range(len_sen1):
-        x = dy.dropout(sen1[i], DROPOUT_RATE)
-        F_i = dy.rectify(F_w2 * (dy.rectify((F_w1*x) + F_b1)) + F_b2)
-        F_sen1.append(F_i)
+    F_sen1 = dy.rectify(F_w2 * (dy.rectify(dy.colwise_add(F_w1*sen1, F_b1))) + F_b2)
+    F_sen2 = dy.rectify(F_w2 * (dy.rectify(dy.colwise_add(F_w1*sen2, F_b1))) + F_b2)
 
-    F_sen2 = []
-    for j in range(len_sen2):
-        x = dy.dropout(sen2[j], DROPOUT_RATE)
-        F_j = dy.rectify(F_w2 * (dy.rectify((F_w1*x) + F_b1)) + F_b2)
-        F_sen2.append(F_j)
+    E_matrix = (dy.transpose(F_sen1)) * F_sen2
 
-    for i in range(len_sen1):
-        E_row = []
-        for j in range(len_sen2):
-            e_ij = (dy.transpose(F_sen1[i])) * F_sen2[j]
-            E_row.append(e_ij)
-        E_matrix.append(E_row)
-
-    return E_matrix
+    return E_matrix, F_sen1, F_sen2
 
 
-def get_alpha_beta(E_matrix, n_rows, n_cols, sen1, sen2):
-    """
-    calculates alpha & beta from E, sen1 and sen2
-    :param E_matrix:
-    :param n_rows:
-    :param n_cols:
-    :param sen1:
-    :param sen2:
-    :param emb_data:
-    :return: alpha and beta np array with size of sen2 and sen1 respectively * LEN_EMB_VECTOR (2d array)
-    """
-    sigma_exp_beta = []
-    for i in range(n_rows):
-        sigma_exp = []
-        for j in range(n_cols):
-            sigma_exp.append(dy.exp(E_matrix[i][j]))
-        sigma_exp_beta.append(dy.esum(sigma_exp))
+def get_alpha_beta(E_matrix, F_sen1, F_sen2):
+    alpha_softmax = dy.softmax(E_matrix)
+    beta_softmax = dy.softmax(dy.transpose(E_matrix))
 
-    beta = []
-    for i in range(n_rows):
-        beta_i = []
-        for j in range(n_cols):
-            beta_i.append(dy.cmult((dy.cdiv(dy.exp(E_matrix[i][j]), sigma_exp_beta[i])), (sen2[j])))
-        beta.append(dy.esum(beta_i))
-    # beta = np.array(beta)
-    #|beta| = nrows = |sen1|
-
-    sigma_exp_alpha = []
-    for j in range(n_cols):
-        sigma_exp = []
-        for i in range(n_rows):
-            sigma_exp.append(dy.exp(E_matrix[i][j]))
-        sigma_exp_alpha.append(dy.esum(sigma_exp))
-
-    alpha = []
-    for j in range(n_cols):
-        alpha_j = []
-        for i in range(n_rows):
-            alpha_j.append(dy.cmult((dy.cdiv(dy.exp(E_matrix[i][j]), sigma_exp_alpha[j])), (sen1[i])))
-        alpha.append(dy.esum(alpha_j))
-    # alpha = np.array(alpha)
-    #|alpha| = ncols = |sen2|
+    beta = F_sen2 * dy.transpose(alpha_softmax)
+    alpha = F_sen1 * dy.transpose(beta_softmax)
 
     return alpha, beta
 
 
-def get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params):
-    """
-
-    :param beta:
-    :param alpha:
-    :param sen1:
-    :param sen2:
-    :param len_sen1:
-    :param len_sen2:
-    :param emb_data:
-    :param model:
-    :param model_params:
-    :return: 2 lists of dynet expressions
-    """
+def get_v1_v2(alpha, beta, sen1, sen2, model_params):
     G_w1 = model_params['G_w1']
     G_b1 = model_params['G_b1']
     G_w2 = model_params['G_w2']
     G_b2 = model_params['G_b2']
 
-    v1 = []
-    for i in range(len_sen1):
-        beta_i = beta[i]
-        con = dy.concatenate([sen1[i], beta_i])
-        G_x = dy.dropout(con, DROPOUT_RATE)
-        G_i = dy.rectify(G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
-        v1.append(G_i)
+    con = dy.concatenate([sen1, beta], d=0)
+    v1 = dy.rectify(G_w2 * (dy.rectify(dy.colwise_add(G_w1 * con, G_b1))) + G_b2)
 
-    v2 = []
-    for j in range(len_sen2):
-        alpha_j = alpha[j]
-        con = dy.concatenate([sen2[j], alpha_j])
-        G_x = dy.dropout(con, DROPOUT_RATE)
-        G_i = dy.rectify(G_w2 * (dy.rectify((G_w1 * G_x) + G_b1)) + G_b2)
-        v2.append(G_i)
+    con = dy.concatenate([sen2, alpha], d=0)
+    v2 = dy.rectify(G_w2 * (dy.rectify(dy.colwise_add(G_w1 * con, G_b1))) + G_b2)
 
     return v1, v2
 
 
-def aggregate_v1_v2(v1, v2, model, model_params):
-    """
-
-    :param v1:
-    :param v2:
-    :param model:
-    :param model_params:
-    :return: y_hat softmaxed dynet expression
-    """
+def aggregate_v1_v2(v1, v2, model_params):
     H_w1 = model_params['H_w1']
     H_b1 = model_params['H_b1']
     H_w2 = model_params['H_w2']
     H_b2 = model_params['H_b2']
 
-    v1_esum = dy.esum(v1)
-    v2_esum = dy.esum(v2)
+    v1_sum = dy.sum_dim(v1, [1])
+    v2_sum = dy.sum_dim(v2, [1])
 
-    con = dy.concatenate([v1_esum, v2_esum])
-    H_x = dy.dropout(con, DROPOUT_RATE)
+    con = dy.concatenate([v1_sum, v2_sum])
+    #H_x = dy.dropout(con, DROPOUT_RATE)
 
-    y_hat = dy.softmax(H_w2 * (dy.rectify((H_w1 * H_x) + H_b1)) + H_b2)
+    y_hat = dy.softmax(H_w2 * (dy.rectify((H_w1 * con) + H_b1)) + H_b2)
 
     return y_hat
 
 
-def train_model(train_data, emb_data, model, model_params, trainer):
-    train_100_loss_val_list =[]
-    train_100_acc_list = []
-    correct = wrong = 0.0
-    total_loss = 0
-    for sample_i in range(len(train_data)):
+def embed(sentence, model, model_params, trainer):
+    E = model_params['E']
+    sentence_embedded = [E[vocab[w]] for w in sentence.split()]
+    sentence_embedded = dy.concatenate(sentence_embedded, d=1)
+    return sentence_embedded
+
+
+def feed_farword(sen1, sen2, model, model_params, trainer):
+    sen1_emb = embed(sen1, model, model_params, trainer)
+    sen2_emb = embed(sen2, model, model_params, trainer)
+
+    E_matrix, F_sen1, F_sen2 = set_E_matrix(sen1_emb, sen2_emb, model_params)
+    alpha, beta = get_alpha_beta(E_matrix, F_sen1, F_sen2)
+    v1, v2 = get_v1_v2(alpha, beta, F_sen1, F_sen2, model_params)
+    y_hat_vec_expression = aggregate_v1_v2(v1, v2, model_params)
+
+    return y_hat_vec_expression
+
+
+def train_model(train_data, model, model_params, trainer, dev_data):
+    train_src_data, train_target_data, train_label_data = train_data
+    dev_src_data, dev_target_data, dev_label_data = dev_data
+
+    train_correct = train_wrong = 0.0
+    train_total_loss = 0
+    shift = 0
+    i = 0
+    train_acc_list = []
+    train_loss_list = []
+    dev_acc_list = []
+    dev_loss_list = []
+    len_of_train_data = len(train_src_data)
+
+    while shift < len_of_train_data:
+        losses = []
         dy.renew_cg()
-        sample = train_data[sample_i]
-        sen1_str, sen2_str, label = get_x_y(sample)
-        len_sen1 = len(sen1_str)
-        len_sen2 = len(sen2_str)
-        sen1 = get_sen_from_dict(sen1_str, emb_data)
-        sen2 = get_sen_from_dict(sen2_str, emb_data)
+        sen1_batch = train_src_data[shift:shift+BATCH_SIZE]
+        sen2_batch = train_target_data[shift:shift + BATCH_SIZE]
+        label_batch = train_label_data[shift:shift + BATCH_SIZE]
 
-        E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params)
-        alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2)
-        v1, v2 = get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params)
-        y_hat_vec_expression = aggregate_v1_v2(v1, v2, model, model_params)
 
-        loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
-        loss_val = loss.value()
-        loss.backward()
+        for sen1, sen2, label in zip(sen1_batch, sen2_batch, label_batch):
+            y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
+            loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
+            losses.append(loss)
+            label_hat = np.argmax(y_hat_vec_expression.npvalue())
+            if label_hat == label:
+                train_correct += 1
+            else:
+                train_wrong += 1
+
+        loss_batch = dy.esum(losses) / BATCH_SIZE
+        i += 1
+        train_total_loss += loss_batch.scalar_value()
+        loss_batch.backward()
         trainer.update()
+        shift += BATCH_SIZE
 
-        total_loss += loss_val
-        label_hat = np.argmax(y_hat_vec_expression.npvalue())
-        if label_hat == label:
-            correct += 1
-        else:
-            wrong += 1
+        if i % (500 // BATCH_SIZE) == 0:
+            acc = (train_correct / (train_correct+train_wrong)) * 100
+            loss_val = train_total_loss/i
+            train_correct = train_wrong = 0.0
+            train_acc_list.append(acc/100)
+            train_loss_list.append(loss_val)
+            print("Epoch %d: Train iteration %d/%d: loss=%.4f acc=%.2f%%" % (epoch_i+1, shift, len_of_train_data, loss_val, acc))
 
-        if sample_i % 100 == 0 and (sample_i > 0):
-            acc = (correct /(correct+wrong)) * 100
-            relative_total_loss = total_loss/sample_i
-            train_100_loss_val_list.append(relative_total_loss)
-            train_100_acc_list.append(acc/100)
-            print("Epoch %d: Train iteration %d: total-loss=%.4f loss=%.4f acc=%.2f%%" % (epoch_i+1, sample_i, relative_total_loss, loss_val, acc))
+        if i % (500 // BATCH_SIZE) == 0:
+            dev_loss = 0
+            dev_correct = dev_wrong = 0.0
+            len_dev_data = len(dev_src_data)
 
-    epoch_loss = sum(train_100_loss_val_list) / len(train_100_loss_val_list)
-    epoch_acc = sum(train_100_acc_list) / len(train_100_acc_list)
+            for sen1, sen2, label in zip(dev_src_data, dev_target_data, dev_label_data):
+                dy.renew_cg()
+                y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
+                loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
+                dev_loss += loss.value()
+                label_hat = np.argmax(y_hat_vec_expression.npvalue())
+                if label_hat == label:
+                    dev_correct += 1
+                else:
+                    dev_wrong += 1
 
-    return model, model_params, epoch_loss, epoch_acc, train_100_loss_val_list, train_100_acc_list
+            dev_acc = (dev_correct / (dev_correct + dev_wrong)) * 100
+            loss_val = dev_loss / len_dev_data
+            dev_acc_list.append(dev_acc/100)
+            dev_loss_list.append(loss_val)
+            print("==== Epoch %d: DEV loss=%.4f acc=%.2f%% ====" % (epoch_i + 1, loss_val, dev_acc))
 
-
-def predict(data, emb_data, model, model_params, data_type):
-    correct = wrong = 0.0
-    total_loss = 0
-    for sample_i in range(len(data)):
-        dy.renew_cg()
-        sample = data[sample_i]
-        sen1_str, sen2_str, label = get_x_y(sample)
-        len_sen1 = len(sen1_str)
-        len_sen2 = len(sen2_str)
-        sen1 = get_sen_from_dict(sen1_str, emb_data)
-        sen2 = get_sen_from_dict(sen2_str, emb_data)
-
-        E_matrix = set_E_matrix(sen1, sen2, len_sen1, len_sen2, model, model_params)
-        alpha, beta = get_alpha_beta(E_matrix, len_sen1, len_sen2, sen1, sen2)
-        v1, v2 = get_v1_v2(alpha, beta, sen1, sen2, len_sen1, len_sen2, model, model_params)
-        y_hat_vec_expression = aggregate_v1_v2(v1, v2, model, model_params)
-
-        loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
-        loss_val = loss.value()
-
-        total_loss += loss_val
-        label_hat = np.argmax(y_hat_vec_expression.npvalue())
-        if label_hat == label:
-            correct += 1
-        else:
-            wrong += 1
-
-    epoch_loss = total_loss / len(data)
-    epoch_acc = correct / (correct+wrong)
-
-    if data_type == 'dev':
-        print("====Epoch %d: Dev epoch-loss=%.4f acc=%.2f%%====" % (epoch_i+1, epoch_loss, epoch_acc*100))
-    else:
-        print("====Test total-loss=%.4f acc=%.2f%%====" % (epoch_loss, epoch_acc*100))
-
-    return epoch_loss, epoch_acc
+    stats = (train_acc_list, train_loss_list, dev_acc_list, dev_loss_list)
+    return model, model_params, stats
 
 
-def make_ststistics(loss_val_list, acc_list, prefix):
+def make_statistics(loss_val_list, acc_list, prefix):
+    title = ''
+    if prefix == 'train':
+        title = 'Train'
+    elif prefix == 'dev':
+        title = 'Dev'
+
     plt_file_name = prefix + '_acc.png'
     plt.plot(acc_list)
     plt.xlabel('Iterations')
     plt.ylabel('Accuracy')
-    plt.title('Training Accuracy')
+    plt.title(title+' Accuracy')
     plt.savefig(plt_file_name)
     plt.close()
 
@@ -414,7 +349,7 @@ def make_ststistics(loss_val_list, acc_list, prefix):
     plt.plot(loss_val_list)
     plt.xlabel('Iterations')
     plt.ylabel('Loss')
-    plt.title('Training Loss')
+    plt.title(title+' Loss')
     plt.savefig(plt_file_name)
     plt.close()
 
@@ -432,37 +367,56 @@ if __name__ == '__main__':
 
         glove_emb_file = 'data/glove/glove.6B.300d.txt'
 
-    train_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
-    dev_data = load_data.loadSNLI_labeled_data(snli_dev_file)  # REMOVE
-    test_data = load_data.loadSNLI_labeled_data(snli_test_file)  # REMOVE
-    emb_data = load_data.get_emb_data(glove_emb_file)
+    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
+    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file, data_type='train')
+    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file, data_type='train')
+    raw_data = chain(train_src_data, train_target_data)
+    vocab = Vocab(raw_data)
+    len_of_train_vocab = len(vocab)
+    print "len vocab is: " + str(len_of_train_vocab)
+    #emb_data = load_data.get_emb_data(glove_emb_file)
 
-    model, model_params, trainer = init_model()
-    train_itreations_loss_val_list = []
-    train_iterations_acc_list = []
-    train_loss_val_list = []
+    model, model_params, trainer = init_model(len_of_train_vocab)
+
     train_acc_list = []
-    dev_loss_val_list = []
+    train_loss_list = []
     dev_acc_list = []
+    dev_loss_list = []
 
     for epoch_i in range(EPOCHS):
-        shuffle(train_data)
-        print("Train Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        model, model_params, train_loss_val, train_acc, i_loss, i_acc = train_model(train_data, emb_data, model, model_params, trainer)
-        train_loss_val_list.append(train_loss_val)
-        train_acc_list.append(train_acc)
-        train_itreations_loss_val_list += i_loss
-        train_iterations_acc_list += i_acc
-        print("Dev Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        dev_loss_val, dev_acc = predict(dev_data, emb_data, model, model_params, 'dev')
-        dev_loss_val_list.append(dev_loss_val)
-        dev_acc_list.append(dev_acc)
+        train_src_data, train_target_data, train_label_data = shuffle(train_src_data, train_target_data, train_label_data)
+        train_data = train_src_data, train_target_data, train_label_data
+        dev_data = dev_src_data, dev_target_data, dev_label_data
+        print("Epoch " + str(epoch_i + 1) + " started at: " + datetime.datetime.now().strftime('%H:%M:%S'))
+        model, model_params, stats = train_model(train_data, model, model_params, trainer, dev_data)
+        train_acc_list_i, train_loss_list_i, dev_acc_list_i, dev_loss_list_i = stats
+        train_acc_list += train_acc_list_i
+        train_loss_list += train_loss_list_i
+        dev_acc_list += dev_acc_list_i
+        dev_loss_list += dev_loss_list_i
 
-    print("Test started at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    test_loss_val, test_acc = predict(test_data, emb_data, model, model_params, 'test')
 
-    make_ststistics(train_itreations_loss_val_list, train_iterations_acc_list, "train_by_iteration")
-    make_ststistics(train_loss_val_list, train_acc_list, "train_by_epoch")
-    make_ststistics(dev_loss_val_list, dev_acc_list, "dev_by_epoch")
-    print("Finished at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    print("Test started at: " + datetime.datetime.now().strftime('%H:%M:%S'))
+    test_loss = 0
+    test_correct = test_wrong = 0.0
+    len_test_data = len(test_src_data)
+    for sen1, sen2, label in zip(test_src_data, test_target_data, test_label_data):
+        dy.renew_cg()
+        y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
+        loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
+        test_loss += loss.value()
+        label_hat = np.argmax(y_hat_vec_expression.npvalue())
+        if label_hat == label:
+            test_correct += 1
+        else:
+            test_wrong += 1
+
+    dev_acc = (test_correct / (test_correct + test_wrong)) * 100
+    loss_val = test_loss / len_test_data
+    print("==== TEST loss=%.4f acc=%.2f%% ====" % (loss_val, dev_acc))
+
+    make_statistics(train_loss_list, train_acc_list, "train")
+    make_statistics(dev_loss_list, dev_acc_list, "dev")
+
+    print("Finished at: " + datetime.datetime.now().strftime('%H:%M:%S'))
 

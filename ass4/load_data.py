@@ -3,6 +3,7 @@ import numpy as np
 import datetime
 import fileinput
 import random
+from collections import Counter
 
 
 ANNOTATOR_DICT = {}
@@ -20,11 +21,16 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
     :param snli_file: train or dev files
     :return: array of tuples of data, each array var is a tuple of (sen1[str], sen2[str], label[int])
     """
-    data = []
+    print "File " + snli_file + " started loading at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    sen1_data = []
+    sen2_data = []
+    label_data = []
+
     with open(snli_file) as f:
         f_lines = f.readlines()
         if data_type == 'train':
-            smaple_range = 201
+            smaple_range = 1501
         else:
             smaple_range = len(f_lines)
 
@@ -36,11 +42,11 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
             if annotator_str_label != '-':
                 sen1 = str(line_json_data[u'sentence1'])
                 sen2 = str(line_json_data[u'sentence2'])
-                data.append((sen1, sen2, annotator_label))
+                sen1_data.append(sen1)
+                sen2_data.append(sen2)
+                label_data.append(annotator_label)
 
-    print "File " + snli_file + " was loaded at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    return data
+    return sen1_data, sen2_data, label_data
 
 
 def loadSNLI_unlabeled_data(snli_test_file):
@@ -70,8 +76,8 @@ def get_emb_data(glove_emb_file):
     emb_dict = {}
     with open(glove_emb_file) as f:
         f_lines = f.readlines()
-        for line_i in range(len(f_lines)):
-        #for line_i in range(101):
+        #for line_i in range(len(f_lines)):
+        for line_i in range(101):
             line = f_lines[line_i]
             line_arr = line.split()
             word_str = line_arr[0]
@@ -87,6 +93,29 @@ def get_emb_data(glove_emb_file):
     print "File " + glove_emb_file + " was loaded at: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     return emb_dict
 
+
+class Vocab:
+    def __init__(self, corpuses, label=False):
+        self.counts = Counter()
+        if not label:
+            for corpus in corpuses:
+                for word in corpus.split():
+                    self.counts[word] += 1
+        else:
+            for word in corpuses:
+                self.counts[word] += 1
+        self.word_to_idx = {w: i for i, (w, _) in enumerate(self.counts.most_common())}
+        if not label:
+            self.word_to_idx['<UNK>'] = len(self.word_to_idx)
+
+    def __len__(self):
+        return len(self.word_to_idx)
+
+    def __getitem__(self, word):
+        if word in self.word_to_idx:
+            return self.word_to_idx[word]
+        else:
+            return self.word_to_idx['<UNK>']
 
 if __name__ == '__main__':
     # snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
