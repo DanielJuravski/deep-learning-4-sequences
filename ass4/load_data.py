@@ -49,24 +49,6 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
     return sen1_data, sen2_data, label_data
 
 
-def loadSNLI_unlabeled_data(snli_test_file):
-    """
-    load snli unlabeled data from file
-    :param snli_file: test file
-    :return: array of tuples of data, each array var is a tuple of (sen1[str], sen2[str])
-    """
-    test_data = []
-    with open(snli_test_file) as f:
-        f_lines = f.readlines()
-        for line in f_lines:
-            line_json_data = json.loads(line)
-            sen1 = str(line_json_data[u'sentence1'])
-            sen2 = str(line_json_data[u'sentence2'])
-            test_data.append((sen1, sen2))
-
-    return test_data
-
-
 def get_emb_data(glove_emb_file):
     """
     get emb dict

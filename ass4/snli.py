@@ -278,7 +278,6 @@ def train_model(train_data, model, model_params, trainer, dev_data):
         sen2_batch = train_target_data[shift:shift + BATCH_SIZE]
         label_batch = train_label_data[shift:shift + BATCH_SIZE]
 
-
         for sen1, sen2, label in zip(sen1_batch, sen2_batch, label_batch):
             y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
             loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
@@ -354,6 +353,28 @@ def make_statistics(loss_val_list, acc_list, prefix):
     plt.close()
 
 
+def predict_test(test_data, model, model_params, trainer):
+    test_src_data, test_target_data, test_label_data = test_data
+    test_loss = 0
+    test_correct = test_wrong = 0.0
+    len_test_data = len(test_src_data)
+    for sen1, sen2, label in zip(test_src_data, test_target_data, test_label_data):
+        dy.renew_cg()
+        y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
+        loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
+        test_loss += loss.value()
+        label_hat = np.argmax(y_hat_vec_expression.npvalue())
+        if label_hat == label:
+            test_correct += 1
+        else:
+            test_wrong += 1
+
+    test_acc = (test_correct / (test_correct + test_wrong)) * 100
+    loss_val = test_loss / len_test_data
+
+    return test_acc, loss_val
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 3:
         snli_train_file = sys.argv[1]
@@ -374,7 +395,7 @@ if __name__ == '__main__':
     vocab = Vocab(raw_data)
     len_of_train_vocab = len(vocab)
     print "len vocab is: " + str(len_of_train_vocab)
-    #emb_data = load_data.get_emb_data(glove_emb_file)
+    emb_data = load_data.get_emb_data(glove_emb_file)
 
     model, model_params, trainer = init_model(len_of_train_vocab)
 
@@ -395,25 +416,10 @@ if __name__ == '__main__':
         dev_acc_list += dev_acc_list_i
         dev_loss_list += dev_loss_list_i
 
-
+    test_data = test_src_data, test_target_data, test_label_data
     print("Test started at: " + datetime.datetime.now().strftime('%H:%M:%S'))
-    test_loss = 0
-    test_correct = test_wrong = 0.0
-    len_test_data = len(test_src_data)
-    for sen1, sen2, label in zip(test_src_data, test_target_data, test_label_data):
-        dy.renew_cg()
-        y_hat_vec_expression = feed_farword(sen1, sen2, model, model_params, trainer)
-        loss = -(dy.log(dy.pick(y_hat_vec_expression, label)))
-        test_loss += loss.value()
-        label_hat = np.argmax(y_hat_vec_expression.npvalue())
-        if label_hat == label:
-            test_correct += 1
-        else:
-            test_wrong += 1
-
-    dev_acc = (test_correct / (test_correct + test_wrong)) * 100
-    loss_val = test_loss / len_test_data
-    print("==== TEST loss=%.4f acc=%.2f%% ====" % (loss_val, dev_acc))
+    test_acc, test_loss = predict_test(test_data, model, model_params, trainer)
+    print("==== TEST loss=%.4f acc=%.2f%% ====" % (test_loss, test_acc))
 
     make_statistics(train_loss_list, train_acc_list, "train")
     make_statistics(dev_loss_list, dev_acc_list, "dev")
