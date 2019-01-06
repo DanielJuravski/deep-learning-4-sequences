@@ -17,7 +17,7 @@ LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 30
+EPOCHS = 20
 LR = 0.001
 DROPOUT_RATE = 0.2
 BATCH_SIZE = 16
@@ -89,6 +89,7 @@ def init_model(emb_dict, emb):
     model_params['H_b2'] = H_b2
 
     len_of_emb = len(emb_dict)
+    print "Len of vocab: " + str(len_of_emb)
     E = model.add_lookup_parameters((len_of_emb, 300))
     E.init_from_array(np.array(emb))
 
@@ -299,12 +300,11 @@ def train_model(train_data, model, model_params, trainer, dev_data):
         if i % (500 // BATCH_SIZE) == 0:
             acc = (train_correct / (train_correct+train_wrong)) * 100
             loss_val = train_total_loss/i
-            train_correct = train_wrong = 0.0
             train_acc_list.append(acc/100)
             train_loss_list.append(loss_val)
             print("Epoch %d: Train iteration %d/%d: loss=%.4f acc=%.2f%%" % (epoch_i+1, shift, len_of_train_data, loss_val, acc))
 
-        if i % (10000 // BATCH_SIZE) == 0:
+        if i % (50000 // BATCH_SIZE) == 0:
             dev_loss = 0
             dev_correct = dev_wrong = 0.0
             len_dev_data = len(dev_src_data)
@@ -422,6 +422,8 @@ if __name__ == '__main__':
 
     make_statistics(train_loss_list, train_acc_list, "train")
     make_statistics(dev_loss_list, dev_acc_list, "dev")
+    with open('test_stat.txt', 'w') as f:
+        f.write("acc: %F\nloss: %f" % (test_acc, test_loss))
 
     print("Finished at: " + datetime.datetime.now().strftime('%H:%M:%S'))
 

@@ -11,7 +11,7 @@ ANNOTATOR_DICT['neutral'] = 0
 ANNOTATOR_DICT['contradiction'] = 1
 ANNOTATOR_DICT['entailment'] = 2
 
-NUM_OF_OOV_EMBEDDINGS = 2
+NUM_OF_OOV_EMBEDDINGS = 100
 LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
@@ -63,7 +63,7 @@ def get_emb_data(glove_emb_file):
     with open(glove_emb_file) as f:
         f_lines = f.readlines()
         for line_i in range(len(f_lines)):
-        #for line_i in range(200000):
+        #for line_i in range(1000):
             line = f_lines[line_i]
             line_arr = line.split()
             word_str = line_arr[0]
