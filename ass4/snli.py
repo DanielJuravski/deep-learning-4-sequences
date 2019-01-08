@@ -17,8 +17,8 @@ LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 20
-LR = 0.001
+EPOCHS = 5
+LR = 0.00005
 DROPOUT_RATE = 0.2
 BATCH_SIZE = 16
 
@@ -45,13 +45,13 @@ def init_model(emb_dict, emb):
 
     # F feed-forward
     eps = np.sqrt(6) / np.sqrt(F_INPUT_SIZE + F_HIDDEN_SIZE)
-    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE))#,init='uniform', scale=eps)
+    F_w1 = model.add_parameters((F_HIDDEN_SIZE, F_INPUT_SIZE),init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_HIDDEN_SIZE)
-    F_b1 = model.add_parameters((F_HIDDEN_SIZE))#, init='uniform', scale=eps)
+    F_b1 = model.add_parameters((F_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE + F_HIDDEN_SIZE)
-    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE))#,init='uniform', scale=eps)
+    F_w2 = model.add_parameters((F_OUTPUT_SIZE, F_HIDDEN_SIZE),init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(F_OUTPUT_SIZE)
-    F_b2 = model.add_parameters((F_OUTPUT_SIZE))#, init='uniform', scale=eps)
+    F_b2 = model.add_parameters((F_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['F_w1'] = F_w1
     model_params['F_b1'] = F_b1
@@ -60,13 +60,13 @@ def init_model(emb_dict, emb):
 
     # G feed-forward
     eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE + G_INPUT_SIZE)
-    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE))#, init='uniform', scale=eps)
+    G_w1 = model.add_parameters((G_HIDDEN_SIZE, G_INPUT_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_HIDDEN_SIZE)
-    G_b1 = model.add_parameters((G_HIDDEN_SIZE))#, init='uniform', scale=eps)
+    G_b1 = model.add_parameters((G_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE + G_HIDDEN_SIZE)
-    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE))#, init='uniform', scale=eps)
+    G_w2 = model.add_parameters((G_OUTPUT_SIZE, G_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(G_OUTPUT_SIZE)
-    G_b2 = model.add_parameters((G_OUTPUT_SIZE))#, init='uniform', scale=eps)
+    G_b2 = model.add_parameters((G_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['G_w1'] = G_w1
     model_params['G_b1'] = G_b1
@@ -75,13 +75,13 @@ def init_model(emb_dict, emb):
 
     # H feed-forward
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE + H_INPUT_SIZE)
-    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE))#, init='uniform', scale=eps)
+    H_w1 = model.add_parameters((H_HIDDEN_SIZE, H_INPUT_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
-    H_b1 = model.add_parameters((H_HIDDEN_SIZE))#, init='uniform', scale=eps)
+    H_b1 = model.add_parameters((H_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_OUTPUT_SIZE + H_HIDDEN_SIZE)
-    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE))#, init='uniform', scale=eps)
+    H_w2 = model.add_parameters((H_OUTPUT_SIZE, H_HIDDEN_SIZE), init='uniform', scale=eps)
     eps = np.sqrt(6) / np.sqrt(H_HIDDEN_SIZE)
-    H_b2 = model.add_parameters((H_OUTPUT_SIZE))#, init='uniform', scale=eps)
+    H_b2 = model.add_parameters((H_OUTPUT_SIZE), init='uniform', scale=eps)
 
     model_params['H_w1'] = H_w1
     model_params['H_b1'] = H_b1
@@ -264,6 +264,8 @@ def train_model(train_data, model, model_params, trainer, dev_data):
     dev_src_data, dev_target_data, dev_label_data = dev_data
 
     train_correct = train_wrong = 0.0
+    train_correct_i = train_wrong_i = 0.0
+    total_acc = 0
     train_total_loss = 0
     shift = 0
     i = 0
@@ -286,9 +288,9 @@ def train_model(train_data, model, model_params, trainer, dev_data):
             losses.append(loss)
             label_hat = np.argmax(y_hat_vec_expression.npvalue())
             if label_hat == label:
-                train_correct += 1
+                train_correct_i += 1
             else:
-                train_wrong += 1
+                train_wrong_i += 1
 
         loss_batch = dy.esum(losses) / BATCH_SIZE
         i += 1
@@ -298,11 +300,15 @@ def train_model(train_data, model, model_params, trainer, dev_data):
         shift += BATCH_SIZE
 
         if i % (500 // BATCH_SIZE) == 0:
-            acc = (train_correct / (train_correct+train_wrong)) * 100
+            acc_i = (train_correct_i / (train_correct_i+train_wrong_i)) * 100
+            train_correct += train_correct_i
+            train_wrong += train_wrong_i
+            total_acc = (train_correct / (train_correct + train_wrong)) * 100
+            train_correct_i = train_wrong_i = 0.0
             loss_val = train_total_loss/i
-            train_acc_list.append(acc/100)
+            train_acc_list.append(acc_i/100)
             train_loss_list.append(loss_val)
-            print("Epoch %d: Train iteration %d/%d: loss=%.4f acc=%.2f%%" % (epoch_i+1, shift, len_of_train_data, loss_val, acc))
+            print("Epoch %d: Train iteration %d/%d: loss=%.4f iteration_acc=%.2f%% total acc=%.2f%%" % (epoch_i+1, shift, len_of_train_data, loss_val, acc_i, total_acc))
 
         if i % (50000 // BATCH_SIZE) == 0:
             dev_loss = 0
@@ -377,22 +383,23 @@ def predict_test(test_data, model, model_params, trainer):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 4:
+    if len(sys.argv) > 3:
         snli_train_file = sys.argv[1]
         snli_dev_file = sys.argv[2]
         snli_test_file = sys.argv[3]
         glove_emb_file = sys.argv[4]
-        nltk_data = sys.argv[5]
     else:
-        snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
-        snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
-        snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
-        glove_emb_file = 'data/glove/glove.6B.300d.txt'
-        nltk_data = "data/nltk_data"
+        wrong_argument_err = "You need to insert 4 arguments:\n$ python snli.py <train_data> <dev_data> <test_data> <glove_data>"
+        raise Exception(wrong_argument_err)
+        #snli_train_file = 'data/snli_1.0/snli_1.0_train.jsonl'
+        #snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
+        #snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
+        #glove_emb_file = 'data/glove/glove.6B.300d.txt'
+    nltk_data = "nltk_data/"
 
-    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file)
-    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file)
-    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file)
+    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
+    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file, data_type='train')
+    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file, data_type='train')
     emb_dict, emb = load_data.get_emb_data(glove_emb_file)
     nltk.data.path.append(nltk_data)
 

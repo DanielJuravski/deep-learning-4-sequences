@@ -1,0 +1,36 @@
+This code implements the "Natural Language Inference" task, based on the Stanford SNLI dataset.
+The model is: "A Decomposable Attention Model for Natural Language Inference" (https://arxiv.org/pdf/1606.01933v1.pdf)
+
+Requested programs:
+- python2.7
+- unzip (for get_data.sh)
+- wget (for get_data.sh)
+
+Requested python modules:
+- dynet
+- dynet_config
+- numpy
+- random
+- datetime
+- sys
+- matplotlib.pyplot
+- nltk
+- sklearn
+
+The code uses 3 external data sets:
+1. SNLI data set - version:1.0 format:'json'.
+2. GloVe data set - version:'glove.42B.300d' format:'txt'.
+3. NLTK data - attached (no need to do anything).
+
+
+For getting the data:
+$ get_data.sh
+
+For running the model:
+$ python snli.py <train_data> <dev_data> <test_data> <glove_data>
+Where:
+<train_data> is "snli_1.0_train.jsonl"
+<dev_data> is "snli_1.0_dev.jsonl"
+<test_data> is "snli_1.0_test.jsonl"
+<glove_data> is "glove.6B.300d.txt"
+

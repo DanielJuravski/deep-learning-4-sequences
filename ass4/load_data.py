@@ -1,9 +1,6 @@
 import json
 import numpy as np
 import datetime
-import fileinput
-import random
-from collections import Counter
 
 
 ANNOTATOR_DICT = {}
@@ -16,11 +13,6 @@ LEN_EMB_VECTOR = 300
 OOV_EMBEDDING_STR = 'OOV'
 
 def loadSNLI_labeled_data(snli_file, data_type='not train'):
-    """
-    load snli labeled data from file, filter '-' annotators
-    :param snli_file: train or dev files
-    :return: array of tuples of data, each array var is a tuple of (sen1[str], sen2[str], label[int])
-    """
     print "File " + snli_file + " started loading at: " + datetime.datetime.now().strftime('%H:%M:%S')
 
     sen1_data = []
@@ -50,11 +42,6 @@ def loadSNLI_labeled_data(snli_file, data_type='not train'):
 
 
 def get_emb_data(glove_emb_file):
-    """
-    get emb dict
-    :param glove_emb_file:
-    :return: dict where key is word, val is [300,1] ndarray word embedding
-    """
     emb_dict = {}
     dict_i = 0
     emb = []
