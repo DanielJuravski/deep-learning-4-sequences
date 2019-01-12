@@ -17,8 +17,8 @@ LEN_EMB_VECTOR = load_data.LEN_EMB_VECTOR
 NUM_OF_OOV_EMBEDDINGS = load_data.NUM_OF_OOV_EMBEDDINGS
 OOV_EMBEDDING_STR = load_data.OOV_EMBEDDING_STR
 
-EPOCHS = 5
-LR = 0.00005
+EPOCHS = 20
+LR = 0.0001
 DROPOUT_RATE = 0.2
 BATCH_SIZE = 16
 
@@ -229,9 +229,14 @@ def get_emb_i(word):
                             w_i = emb_dict[word]
                             #print "PORTER"
                         else:
-                            randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
-                            rand_word = OOV_EMBEDDING_STR + str(randoov)
-                            w_i = emb_dict[rand_word]
+                            if word in oov_dict:
+                                word_oov_i = oov_dict[word]
+                                w_i = emb_dict[word_oov_i]
+                            else:
+                                randoov = randint(0, NUM_OF_OOV_EMBEDDINGS - 1)
+                                word_oov_i = OOV_EMBEDDING_STR + str(randoov)
+                                oov_dict[word] = word_oov_i
+                                w_i = emb_dict[word_oov_i]
                             # if word == " " or word == "":
                             #     print "not in dict: " + word + "ORIGINAL WORD: " + original_word
                             # else:
@@ -397,10 +402,11 @@ if __name__ == '__main__':
         #glove_emb_file = 'data/glove/glove.6B.300d.txt'
     nltk_data = "nltk_data/"
 
-    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file, data_type='train')
-    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file, data_type='train')
-    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file, data_type='train')
+    train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file)
+    dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file)
+    test_src_data, test_target_data, test_label_data = load_data.loadSNLI_labeled_data(snli_test_file)
     emb_dict, emb = load_data.get_emb_data(glove_emb_file)
+    oov_dict = {}
     nltk.data.path.append(nltk_data)
 
     model, model_params, trainer = init_model(emb_dict, emb)
