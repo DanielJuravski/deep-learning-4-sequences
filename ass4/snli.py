@@ -393,6 +393,7 @@ if __name__ == '__main__':
         snli_dev_file = sys.argv[2]
         snli_test_file = sys.argv[3]
         glove_emb_file = sys.argv[4]
+        nltk_data = sys.argv[5]
     else:
         wrong_argument_err = "You need to insert 4 arguments:\n$ python snli.py <train_data> <dev_data> <test_data> <glove_data>"
         raise Exception(wrong_argument_err)
@@ -400,7 +401,7 @@ if __name__ == '__main__':
         #snli_dev_file = 'data/snli_1.0/snli_1.0_dev.jsonl'
         #snli_test_file = 'data/snli_1.0/snli_1.0_test.jsonl'
         #glove_emb_file = 'data/glove/glove.6B.300d.txt'
-    nltk_data = "nltk_data/"
+        #nltk_data = "nltk_data/"
 
     train_src_data, train_target_data, train_label_data = load_data.loadSNLI_labeled_data(snli_train_file)
     dev_src_data, dev_target_data, dev_label_data = load_data.loadSNLI_labeled_data(snli_dev_file)

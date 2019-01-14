@@ -26,11 +26,14 @@ The code uses 3 external data sets:
 For getting the data:
 $ get_data.sh
 
-For running the model:
-$ python snli.py <train_data> <dev_data> <test_data> <glove_data>
-Where:
-<train_data> is "snli_1.0_train.jsonl"
-<dev_data> is "snli_1.0_dev.jsonl"
-<test_data> is "snli_1.0_test.jsonl"
-<glove_data> is "glove.6B.300d.txt"
 
+For running the model:
+    $ python snli.py <train_data> <dev_data> <test_data> <glove_data> <nltk_data>
+Where:
+    <train_data> is "snli_1.0_train.jsonl" file.
+    <dev_data> is "snli_1.0_dev.jsonl" file.
+    <test_data> is "snli_1.0_test.jsonl" file.
+    <glove_data> is "glove.42B.300d.txt" file.
+    <nltk_data> is "nltk_data/" dir.
+For example:
+    $ python snli.py snli_1.0_train.jsonl snli_1.0_dev.jsonl snli_1.0_test.jsonl glove.42B.300d.txt nltk_data/
